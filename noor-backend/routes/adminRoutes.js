@@ -26,6 +26,12 @@ router.delete('/milestones/:id', verifyToken, isAdmin, milestoneController.delet
 const reportController = require('../controllers/reportController');
 router.get('/overall-report', verifyToken, isAdmin, reportController.getOverallReport);
 
+// Worker Activity Routes
+const workerActivityController = require('../controllers/workerActivityController');
+router.get('/workers/:workerId/activity', verifyToken, isAdmin, workerActivityController.getWorkerActivity);
+router.post('/workers/:workerId/activity/toggle', verifyToken, isAdmin, workerActivityController.toggleActivity);
+router.get('/workers/:workerId/productivity-trend', verifyToken, isAdmin, workerActivityController.getProductivityTrend);
+router.get('/workers/:workerId/details', verifyToken, isAdmin, workerActivityController.getWorkerDetails);
 
 
 module.exports = router;

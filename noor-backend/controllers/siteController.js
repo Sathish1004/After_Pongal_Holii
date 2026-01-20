@@ -286,14 +286,27 @@ exports.addPhase = async (req, res) => {
 exports.updatePhase = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, order_num, budget } = req.body;
+        const { name, order_num, budget, serialNumber, floorName, floorNumber } = req.body;
 
-        // Note: serialNumber, floorNumber, floorName are not currently in the schema
-        // and support for them was partial. We are sticking to the core columns.
+        const updates = [];
+        const params = [];
+
+        if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+        if (order_num !== undefined) { updates.push('order_num = ?'); params.push(order_num); }
+        if (budget !== undefined) { updates.push('budget = ?'); params.push(budget); }
+        if (serialNumber !== undefined) { updates.push('serial_number = ?'); params.push(serialNumber); }
+        if (floorName !== undefined) { updates.push('floor_name = ?'); params.push(floorName); }
+        if (floorNumber !== undefined) { updates.push('floor_number = ?'); params.push(floorNumber); }
+
+        if (updates.length === 0) {
+            return res.json({ message: 'No changes detected' });
+        }
+
+        params.push(id);
 
         await db.query(
-            'UPDATE phases SET name = ?, order_num = ?, budget = ? WHERE id = ?',
-            [name, order_num, budget || 0, id]
+            `UPDATE phases SET ${updates.join(', ')} WHERE id = ?`,
+            params
         );
 
         res.json({ message: 'Phase updated successfully' });

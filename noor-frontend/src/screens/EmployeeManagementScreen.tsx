@@ -206,7 +206,12 @@ const EmployeeManagementScreen = ({ navigation, route }: any) => {
             ) : (
                 <ScrollView style={styles.content}>
                     {employees.map((emp) => (
-                        <View key={emp.id} style={styles.card}>
+                        <TouchableOpacity
+                            key={emp.id}
+                            style={styles.card}
+                            onPress={() => navigation.navigate('WorkerDetail', { workerId: emp.id })}
+                            activeOpacity={0.7}
+                        >
                             <View style={styles.cardHeader}>
                                 <View style={styles.avatar}>
                                     {emp.profile_image ? (
@@ -275,7 +280,7 @@ const EmployeeManagementScreen = ({ navigation, route }: any) => {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                        </View>
+                        </TouchableOpacity>
                     ))}
                     <View style={{ height: 40 }} />
                 </ScrollView>

@@ -879,7 +879,7 @@ const AdminDashboardScreen = () => {
 
   // Stage Options Menu State
   const [stageOptionsVisible, setStageOptionsVisible] = useState(false);
-  const [selectedStageOption, setSelectedStageOption] = useState<{ id: number; name: string } | null>(null);
+  const [selectedStageOption, setSelectedStageOption] = useState<{ id: number; name: string; floor?: string; serial_number?: any } | null>(null);
 
   const getFloorNameFromNumber = (num: number) => {
     const smallNumbers = ["Ground", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
@@ -926,16 +926,21 @@ const AdminDashboardScreen = () => {
 
   // --- Milestone Handlers ---
   const handleSaveMilestone = async (data: any) => {
-    if (!selectedSite?.id) return;
+    if (!selectedSite?.id) {
+      Alert.alert("Error", "No site selected. Please refresh the page.");
+      return;
+    }
+
+    // Default plannedStartDate to plannedEndDate if missing (Milestone is a point in time)
+    if (!data.plannedStartDate && data.plannedEndDate) {
+      data.plannedStartDate = data.plannedEndDate;
+    }
 
     // Check if marking as completed
     if (data.status === 'Completed') {
-      // Trigger Banner
       setUnlockedMilestoneName(data.name);
-
-      // Add completion date if not present (backend might handle this, but explicit is better)
       if (!data.actual_completion_date) {
-        data.actual_completion_date = new Date().toISOString(); // Or YYYY-MM-DD based on backend preference
+        data.actual_completion_date = new Date().toISOString();
       }
     }
 
@@ -965,9 +970,11 @@ const AdminDashboardScreen = () => {
       const phasesRes = await api.get(`/sites/${selectedSite.id}/phases`);
       setProjectPhases(phasesRes.data.phases || []);
 
-    } catch (error) {
+      Alert.alert("Success", "Milestone saved successfully.");
+
+    } catch (error: any) {
       console.error("Error saving milestone:", error);
-      showToast("Failed to save milestone", "error");
+      Alert.alert("Save Failed", error?.response?.data?.message || error.message || "An error occurred.");
       throw error;
     }
   };
@@ -1103,8 +1110,6 @@ const AdminDashboardScreen = () => {
         name: editingPhaseName,
         floorName: editingPhaseFloor,
         floorNumber: floorNum,
-        order_num: 999,
-        budget: 0,
         serialNumber: serialNum
       });
 
@@ -3694,7 +3699,11 @@ Project Team`;
   };
 
   const renderEmployeeItem = ({ item }: { item: any }) => (
-    <View style={styles.employeeCard}>
+    <TouchableOpacity
+      style={styles.employeeCard}
+      activeOpacity={0.7}
+      onPress={() => navigation.navigate("WorkerDetail", { workerId: item.id })}
+    >
       <View style={styles.employeeInfo}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -3720,7 +3729,7 @@ Project Team`;
           <MaterialIcons name="delete" size={20} color="#EF4444" />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderTaskDetailsPage = () => {
@@ -4580,11 +4589,16 @@ Project Team`;
                   marginBottom: 20,
                 }}
               >
-                <Text
-                  style={{ fontSize: 24, fontWeight: "700", color: "#111827" }}
-                >
-                  Workers
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <TouchableOpacity onPress={() => setActiveTab("Dashboard")}>
+                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                  </TouchableOpacity>
+                  <Text
+                    style={{ fontSize: 24, fontWeight: "700", color: "#111827" }}
+                  >
+                    Workers
+                  </Text>
+                </View>
                 <TouchableOpacity
                   style={{
                     backgroundColor: "#8B0000",
@@ -4959,6 +4973,8 @@ Project Team`;
                                         setSelectedStageOption({
                                           id: phase.id,
                                           name: phase.name,
+                                          floor: floorName,
+                                          serial_number: phase.serial_number
                                         });
                                         setStageOptionsVisible(true);
                                       }}
@@ -8912,6 +8928,8 @@ Project Team`;
                   setStageOptionsVisible(false);
                   setEditingPhaseId(selectedStageOption.id);
                   setEditingPhaseName(selectedStageOption.name);
+                  setEditingPhaseFloor(selectedStageOption.floor || "");
+                  setEditingPhaseSerialNumber(String(selectedStageOption.serial_number || ""));
                   setEditPhaseModalVisible(true);
                 }
               }}

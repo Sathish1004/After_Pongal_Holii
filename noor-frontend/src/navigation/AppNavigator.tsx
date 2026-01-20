@@ -15,6 +15,7 @@ import TaskManagementScreen from '../screens/TaskManagementScreen';
 import StageProgressScreen from '../screens/StageProgressScreen';
 import EmployeeProjectDetailsScreen from '../screens/EmployeeProjectDetailsScreen';
 import EmployeeManagementScreen from '../screens/EmployeeManagementScreen';
+import WorkerDetailScreen from '../screens/WorkerDetailScreen';
 import EmployeeProfileScreen from '../screens/EmployeeProfileScreen';
 import CompletedTasksScreen from '../screens/CompletedTasksScreen';
 
@@ -46,6 +47,7 @@ const AppNavigator: React.FC = () => {
                         <Stack.Screen name="TaskManagement" component={TaskManagementScreen} />
                         <Stack.Screen name="StageProgress" component={StageProgressScreen} />
                         <Stack.Screen name="EmployeeManagement" component={EmployeeManagementScreen} />
+                        <Stack.Screen name="WorkerDetail" component={WorkerDetailScreen} />
                         {/* Admin might generally not needed this but harmless */}
                         <Stack.Screen name="EmployeeProjectDetails" component={EmployeeProjectDetailsScreen} />
                     </>
