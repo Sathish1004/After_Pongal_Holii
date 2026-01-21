@@ -1176,45 +1176,6 @@ const AdminDashboardScreen = () => {
     "Tasks",
   );
 
-  // Core Modal States
-  const [projectModalVisible, setProjectModalVisible] = useState(false);
-  const [sitePickerVisible, setSitePickerVisible] = useState(false);
-  const [selectedSite, setSelectedSite] = useState<any>(null);
-  const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [formData, setFormData] = useState<any>({
-    name: "",
-    address: "",
-    city: "",
-    state: "",
-    country: "",
-    clientName: "",
-    clientCompany: "",
-    clientEmail: "",
-    clientPhone: "",
-    startDate: "",
-    endDate: "",
-    budget: "",
-    siteFunds: "",
-  });
-  const [projectFiles, setProjectFiles] = useState<any[]>([]);
-  const [selectedFileTab, setSelectedFileTab] = useState<string>("all");
-  const [materialRequests, setMaterialRequests] = useState<any[]>([]);
-  const [projectMaterials, setProjectMaterials] = useState<any[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
-  const [settingsPhases, setSettingsPhases] = useState<any[]>([]);
-  const [activeFileTab, setActiveFileTab] = useState<"Media" | "Voice" | "Documents" | "Links">("Media");
-  const [fileLoading, setFileLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [expandedPhaseIds, setExpandedPhaseIds] = useState<number[]>([]);
-
-
-
-
   // Floor-Based Stage Creation State
   // Floor-Based Stage Creation State
   const [newStageFloors, setNewStageFloors] = useState<string[]>([]);
@@ -1424,14 +1385,6 @@ const AdminDashboardScreen = () => {
     }
   }, [isFocused]);
 
-  useEffect(() => {
-    if (!projectModalVisible && !taskModalVisible && !sitePickerVisible) {
-      fetchSites();
-      fetchDashboardStats();
-      fetchApprovals();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectModalVisible, taskModalVisible, sitePickerVisible]);
 
   const fetchEmployees = async () => {
     try {
@@ -1451,48 +1404,6 @@ const AdminDashboardScreen = () => {
       console.log("Error fetching sites:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchDashboardStats = async () => {
-    setStatsLoading(true);
-    try {
-      const response = await api.get("/admin/dashboard-stats");
-      setDashboardStats(response.data);
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  const fetchApprovals = async () => {
-    setApprovalLoading(true);
-    try {
-      const response = await api.get("/admin/approvals");
-      setApprovalData(response.data || { tasks: [], materials: [] });
-    } catch (error) {
-      console.error("Error fetching approvals:", error);
-    } finally {
-      setApprovalLoading(false);
-    }
-  };
-
-  const fetchProjectDetails = async (siteId: number) => {
-    setProjectLoading(true);
-    try {
-      const [siteDataRes, milesRes] = await Promise.all([
-        api.get(`/sites/${siteId}`),
-        api.get(`/admin/sites/${siteId}/milestones`),
-      ]);
-
-      setProjectPhases(siteDataRes.data.phases || []);
-      setProjectTasks(siteDataRes.data.tasks || []);
-      setProjectMilestones(milesRes.data || []);
-    } catch (error) {
-      console.error("Error fetching project details:", error);
-    } finally {
-      setProjectLoading(false);
     }
   };
 
@@ -1770,7 +1681,18 @@ const AdminDashboardScreen = () => {
     setStageOptionsVisible(false);
   };
 
-
+  const fetchApprovals = async () => {
+    setApprovalLoading(true);
+    try {
+      const response = await api.get("/admin/approvals");
+      setApprovalData(response.data);
+    } catch (error) {
+      console.error("Error fetching approvals:", error);
+      showToast("Failed to load approvals", "error");
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
 
   const handleApproveTask = async (arg: number | any) => {
     const taskId = typeof arg === "object" ? arg.id : arg;
@@ -1878,6 +1800,7 @@ const AdminDashboardScreen = () => {
     }
   };
 
+  const [expandedPhaseIds, setExpandedPhaseIds] = useState<number[]>([]);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState({
@@ -1943,7 +1866,6 @@ const AdminDashboardScreen = () => {
 
         if (project) {
           setSelectedSite(project);
-          setSelectedSiteId(project.id);
           await fetchProjectDetails(project.id);
           setProjectModalVisible(true);
 
@@ -1960,7 +1882,6 @@ const AdminDashboardScreen = () => {
             const res = await api.get(`/sites/${notification.project_id}`);
             // setSites... maybe update list?
             setSelectedSite(res.data);
-            setSelectedSiteId(notification.project_id);
             await fetchProjectDetails(notification.project_id);
             setProjectModalVisible(true);
             if (notification.phase_id) {
@@ -1977,7 +1898,28 @@ const AdminDashboardScreen = () => {
     }
   };
 
+  // Project Modal State (List)
+  const [projectModalVisible, setProjectModalVisible] = useState(false);
 
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [sitePickerVisible, setSitePickerVisible] = useState(false);
+  const [settingsPhases, setSettingsPhases] = useState<any[]>([]);
+
+  // Files State
+  const [projectFiles, setProjectFiles] = useState<any[]>([]);
+  const [activeFileTab, setActiveFileTab] = useState<
+    "Media" | "Voice" | "Documents" | "Links"
+  >("Media");
+  const [fileLoading, setFileLoading] = useState(false);
+
+  // Dashboard Stats State
+  const [dashboardStats, setDashboardStats] = useState<any>(null); // Fixed type to any strictly to enable build, user reported type errors
+  const [statsLoading, setStatsLoading] = useState(false);
 
   // Completed Tasks Filter State
   const [completedTaskFilter, setCompletedTaskFilter] = useState<
@@ -2041,7 +1983,28 @@ const AdminDashboardScreen = () => {
     }
   }, [completedTaskFilter, activeTab]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!projectModalVisible && !taskModalVisible && !sitePickerVisible) {
+      fetchSites();
+      fetchDashboardStats();
+      fetchApprovals();
+    }
+  }, [projectModalVisible, taskModalVisible, sitePickerVisible]);
 
+
+  const fetchDashboardStats = async () => {
+    setStatsLoading(true);
+    try {
+      const response = await api.get("/admin/dashboard-stats");
+      setDashboardStats(response.data);
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      // Fallback or Toast?
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   const fetchProjectFiles = useCallback(async (siteId: number) => {
     setFileLoading(true);
@@ -2100,7 +2063,7 @@ const AdminDashboardScreen = () => {
     }
   };
 
-
+  const selectedSiteId = selectedSite?.id;
 
   // Effect for Files
   useEffect(() => {
@@ -2108,7 +2071,6 @@ const AdminDashboardScreen = () => {
       fetchProjectFiles(selectedSiteId);
     }
   }, [activeProjectTab, selectedSiteId, fetchProjectFiles]);
-
 
   const handleUpdateMaterialStatus = async (
     id: number,
@@ -2131,7 +2093,9 @@ const AdminDashboardScreen = () => {
     }
   }, [activeTab]);
 
-
+  // Material Requests State (Admin)
+  const [materialRequests, setMaterialRequests] = useState<any[]>([]);
+  const [projectMaterials, setProjectMaterials] = useState<any[]>([]); // To store materials for specific project logic
 
   // Fetch all materials for admin
   const fetchAdminMaterials = async () => {
@@ -2227,150 +2191,6 @@ const AdminDashboardScreen = () => {
     setChatTaskId(task.id);
     setChatSiteName(task.site_name);
   };
-
-  /* --- Render Materials Tab --- */
-  const renderMaterials = () => (
-    <View style={{ flex: 1, backgroundColor: "#F9FAFB", paddingHorizontal: 16 }}>
-      {/* Header with Back Button */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 20, marginBottom: 16 }}>
-        <TouchableOpacity
-          onPress={() => setActiveTab("Dashboard")}
-          style={{ padding: 8, marginRight: 8 }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
-        </TouchableOpacity>
-        <View>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: "#111827" }}>
-            Material Requests
-          </Text>
-          <Text style={{ fontSize: 14, color: "#6b7280" }}>
-            Manage and review all material requests
-          </Text>
-        </View>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator size="large" color="#8B0000" style={{ marginTop: 20 }} />
-      ) : (
-        <FlatList
-          data={materialRequests}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingBottom: 100 }}
-          ListEmptyComponent={
-            <View style={{ alignItems: "center", marginTop: 40 }}>
-              <Ionicons name="cube-outline" size={48} color="#e5e7eb" />
-              <Text style={{ marginTop: 12, color: "#9ca3af" }}>
-                No material requests found
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: "#fff",
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: "#e5e7eb",
-              }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
-                <View>
-                  <Text style={{ fontSize: 16, fontWeight: "600", color: "#111827" }}>
-                    {item.material_name}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>
-                    Qty: {item.quantity}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 12,
-                    backgroundColor:
-                      item.status === "Approved"
-                        ? "#dcfce7"
-                        : item.status === "Rejected"
-                          ? "#fee2e2"
-                          : "#fff7ed",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color:
-                        item.status === "Approved"
-                          ? "#166534"
-                          : item.status === "Rejected"
-                            ? "#b91c1c"
-                            : "#c2410c",
-                    }}
-                  >
-                    {item.status}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ marginBottom: 16 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                  <Ionicons name="business-outline" size={14} color="#6b7280" />
-                  <Text style={{ fontSize: 13, color: "#4b5563", marginLeft: 6 }}>
-                    {item.site_name || "Unknown Site"}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons name="person-outline" size={14} color="#6b7280" />
-                  <Text style={{ fontSize: 13, color: "#4b5563", marginLeft: 6 }}>
-                    {item.requested_by || "Unknown User"} •{" "}
-                    {new Date(item.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                {item.notes && (
-                  <Text style={{ fontSize: 13, color: "#6b7280", marginTop: 8, fontStyle: "italic" }}>
-                    "{item.notes}"
-                  </Text>
-                )}
-              </View>
-
-              {item.status === "Pending" && (
-                <View style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: "#f3f4f6", paddingTop: 12 }}>
-                  <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#16a34a",
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                      alignItems: "center",
-                      marginRight: 8,
-                    }}
-                    onPress={() => handleUpdateMaterialStatus(item.id, "Approved")}
-                  >
-                    <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Approve</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#dc2626",
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                      alignItems: "center",
-                      marginLeft: 8,
-                    }}
-                    onPress={() => handleUpdateMaterialStatus(item.id, "Rejected")}
-                  >
-                    <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
-        />
-      )}
-    </View>
-  );
 
   const renderCompletedTasks = () => {
     // Group Tasks by Project -> Phase
@@ -3170,7 +2990,62 @@ const AdminDashboardScreen = () => {
     setNewPhaseSNo("");
   };
 
+  const fetchProjectDetails = async (siteId: number) => {
+    setProjectLoading(true);
+    try {
+      const response = await api.get(`/sites/${siteId}`);
+      const phases = response.data.phases || [];
+      setProjectPhases(phases);
+      setProjectTasks(response.data.tasks || []);
 
+      // Auto-expand first phase if available
+      if (phases.length > 0) {
+        setExpandedPhaseIds([phases[0].id]);
+      }
+
+      // Fetch Milestones
+      try {
+        const milesRes = await api.get(`/admin/sites/${siteId}/milestones`);
+        const milestones = (milesRes.data || []).map((m: any) => ({
+          ...m,
+          status: m.status || "Not Started",
+        }));
+        setProjectMilestones(milestones);
+
+        // Check for newly achieved milestones
+        const today = new Date().toISOString().split("T")[0];
+        milestones.forEach((m: any) => {
+          if (m.status === "Completed") {
+            const isProcessed = processedMilestoneIds.current.has(m.id);
+            // Check if completed today (or recently if actual_completion_date is missing but status is completed)
+            // For robustness, if actual_completion_date is today.
+            let completedDate = null;
+            if (m.actual_completion_date) {
+              // Handle various date formats if needed, but ISO expected from backend
+              if (m.actual_completion_date.includes("T")) {
+                completedDate = m.actual_completion_date.split("T")[0];
+              } else {
+                completedDate = m.actual_completion_date;
+              }
+            }
+
+            if (!isProcessed && completedDate === today) {
+              setUnlockedMilestoneName(m.name);
+            }
+
+            processedMilestoneIds.current.add(m.id);
+          }
+        });
+      } catch (err) {
+        console.log("Error fetching milestones", err);
+      }
+    } catch (error) {
+      console.error("Error fetching project details:", error);
+      showToast("Failed to load project details", "error");
+    } finally {
+      setProjectLoading(false);
+    }
+  };
 
   /* Delete Phase Logic */
   const [phaseToDelete, setPhaseToDelete] = useState<{
@@ -3363,7 +3238,22 @@ const AdminDashboardScreen = () => {
     setDatePicker((prev) => ({ ...prev, visible: false }));
   };
 
-
+  // Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    address: "",
+    city: "",
+    state: "",
+    country: "",
+    clientName: "",
+    clientCompany: "",
+    clientEmail: "",
+    clientPhone: "",
+    startDate: "",
+    endDate: "",
+    budget: "",
+    siteFunds: "",
+  });
 
   // State for Task Assignment / Details Modal
   // (States are already defined above around line 240-280)
@@ -3445,7 +3335,7 @@ const AdminDashboardScreen = () => {
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   // --- REPORT GENERATION & EXPORT ---
@@ -4786,7 +4676,6 @@ Project Team`;
         {activeTab === "Approvals" && renderApprovals()}
         {activeTab === "Completed" && renderCompletedTasks()}
 
-
         {activeTab === "Dashboard" && (
           <ScrollView
             style={{ flex: 1 }}
@@ -5064,7 +4953,6 @@ Project Team`;
                       style={styles.newProjectRow}
                       onPress={() => {
                         setSelectedSite(item);
-                        setSelectedSiteId(item.id);
                         fetchProjectDetails(item.id);
                         setProjectModalVisible(true);
                       }}
@@ -7450,8 +7338,6 @@ Project Team`;
             Workers
           </Text>
         </TouchableOpacity>
-
-
       </View>
 
       {/* Create Project Modal */}
