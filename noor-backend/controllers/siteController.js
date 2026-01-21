@@ -3,6 +3,7 @@ const db = require('../config/db');
 const bcrypt = require('bcrypt'); // Added for password hashing
 
 const { checkAndCompleteMilestones } = require('../utils/milestoneHelper');
+const { logTaskAssigned, logTaskCompleted } = require('../utils/activityLogger');
 
 // Helper to Create Notification
 const createNotification = async (projectId, phaseId, taskId, employeeId, type, message) => {
@@ -166,6 +167,75 @@ exports.getSiteWithPhases = async (req, res) => {
         if (sites.length === 0) {
             return res.status(404).json({ message: 'Site not found' });
         }
+
+        // --- AUTO-MIGRATION LOGIC FOR PHASES & TASKS ---
+        // Load the new template
+        const CONSTRUCTION_TEMPLATE = require('../templates/construction-template');
+
+        // Define legacy mapping (Old Name -> New Name) based on Index/Order
+        // We rely on order_num primarily if names match the old standard
+        const LEGACY_NAMES = [
+            "Site Preparation", "Excavation", "Footing Construction", "Foundation Work",
+            "Column Construction", "Plinth Beam", "Ground Floor Slab", "First Floor Work",
+            "Brickwork", "Electrical & Plumbing", "Plastering", "Flooring & Finishing",
+            "Painting", "Final Inspection & Handover"
+        ];
+
+        // 1. Fetch current phases
+        let [currentPhases] = await db.query('SELECT * FROM phases WHERE site_id = ? ORDER BY order_num ASC', [id]);
+        let migrationOccurred = false;
+
+        // 2. Check and Migrate Phase Names & Populate Tasks
+        for (const phase of currentPhases) {
+            // A. RENAME LEGACY PHASES
+            const legacyIndex = LEGACY_NAMES.indexOf(phase.name);
+            let targetTemplate = null;
+
+            if (legacyIndex !== -1 && legacyIndex < CONSTRUCTION_TEMPLATE.length) {
+                // Determine target based on legacy name match index
+                targetTemplate = CONSTRUCTION_TEMPLATE[legacyIndex];
+            } else {
+                // Try to find by direct name match (already migrated?)
+                targetTemplate = CONSTRUCTION_TEMPLATE.find(t => t.stageName === phase.name);
+
+                // Fallback: If not found, maybe match by serial number?
+                if (!targetTemplate && phase.order_num <= CONSTRUCTION_TEMPLATE.length) {
+                    targetTemplate = CONSTRUCTION_TEMPLATE[phase.order_num - 1];
+                }
+            }
+
+            if (targetTemplate) {
+                // Check if rename needed
+                if (phase.name !== targetTemplate.stageName) {
+                    console.log(`[Auto-Heal] Renaming Phase ${phase.id}: "${phase.name}" -> "${targetTemplate.stageName}"`);
+                    await db.query('UPDATE phases SET name = ? WHERE id = ?', [targetTemplate.stageName, phase.id]);
+                    phase.name = targetTemplate.stageName; // Update local for next step
+                    migrationOccurred = true;
+                }
+
+                // B. POPULATE MISSING TASKS
+                const [taskCount] = await db.query('SELECT COUNT(*) as count FROM tasks WHERE phase_id = ?', [phase.id]);
+                if (taskCount[0].count === 0) {
+                    console.log(`[Auto-Heal] Populating tasks for Phase ${phase.id} (${phase.name})...`);
+                    let taskOrder = 1;
+                    for (const taskName of targetTemplate.tasks) {
+                        await db.query(
+                            `INSERT INTO tasks (site_id, phase_id, name, status, order_index) 
+                             VALUES (?, ?, ?, 'Not Started', ?)`,
+                            [id, phase.id, taskName, taskOrder++]
+                        );
+                    }
+                    migrationOccurred = true;
+                }
+            }
+        }
+
+        // 3. Re-fetch if migration happened
+        if (migrationOccurred) {
+            console.log('[Auto-Heal] Refreshing site data after migration...');
+        }
+
+        // --- END MIGRATION LOGIC ---
 
         const [phases] = await db.query(`
             SELECT p.*, e.name as assigned_employee_name,
@@ -669,6 +739,9 @@ exports.toggleTaskAssignment = async (req, res) => {
                     'ASSIGNMENT',
                     `You have been assigned to task: "${taskData[0].name}"`
                 );
+
+                // AUTO-LOG: Task assigned activity
+                await logTaskAssigned(employeeId);
             }
         }
 

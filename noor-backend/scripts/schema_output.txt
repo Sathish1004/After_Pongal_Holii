@@ -1,0 +1,83 @@
+
+
+--- PHASES ---
+CREATE TABLE `phases` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `site_id` int NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `budget` decimal(15,2) DEFAULT '0.00',
+  `order_num` int DEFAULT '1',
+  `status` enum('pending','in_progress','completed','waiting_for_approval','achieved') DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `assigned_to` int DEFAULT NULL,
+  `start_date` date DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
+  `progress` int DEFAULT '0',
+  `completed_by` int DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `approved_by` int DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `floor_number` int DEFAULT '0',
+  `floor_name` varchar(255) DEFAULT 'Ground Floor',
+  `serial_number` int DEFAULT '0',
+  `milestone_id` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `site_id` (`site_id`),
+  KEY `fk_phase_employee` (`assigned_to`),
+  KEY `fk_phase_approver` (`approved_by`),
+  KEY `fk_phase_milestone` (`milestone_id`),
+  CONSTRAINT `fk_phase_approver` FOREIGN KEY (`approved_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_phase_employee` FOREIGN KEY (`assigned_to`) REFERENCES `employees` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_phase_milestone` FOREIGN KEY (`milestone_id`) REFERENCES `milestones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `phases_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=333 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+
+--- TASKS ---
+CREATE TABLE `tasks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `site_id` int DEFAULT NULL,
+  `phase_id` int DEFAULT NULL,
+  `employee_id` int DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text,
+  `start_date` date DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
+  `amount` decimal(12,2) DEFAULT '0.00',
+  `status` varchar(255) DEFAULT 'Not Started',
+  `delay_reason` text,
+  `proof_url` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `progress` int DEFAULT '0',
+  `completed_by` int DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `approved_by` int DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `order_index` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `site_id` (`site_id`),
+  KEY `phase_id` (`phase_id`),
+  CONSTRAINT `tasks_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `tasks_ibfk_2` FOREIGN KEY (`phase_id`) REFERENCES `phases` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1771 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+
+--- TRANSACTIONS ---
+CREATE TABLE `transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `site_id` int NOT NULL,
+  `type` enum('IN','OUT') NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `phase_id` int DEFAULT NULL,
+  `description` text,
+  `date` date NOT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `payment_method` varchar(50) DEFAULT 'Cash',
+  PRIMARY KEY (`id`),
+  KEY `site_id` (`site_id`),
+  KEY `phase_id` (`phase_id`),
+  KEY `created_by` (`created_by`),
+  CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `transactions_ibfk_2` FOREIGN KEY (`phase_id`) REFERENCES `phases` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `transactions_ibfk_3` FOREIGN KEY (`created_by`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

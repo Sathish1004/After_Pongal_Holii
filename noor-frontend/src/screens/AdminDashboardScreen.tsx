@@ -30,11 +30,183 @@ import AchievementBanner from "../components/AchievementBanner"; // NEW
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
-import { useNavigation, useIsFocused, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useIsFocused,
+  useFocusEffect,
+} from "@react-navigation/native";
 import StageProgressScreen from "./StageProgressScreen";
 import ProjectTransactions from "../components/ProjectTransactions";
 import * as DocumentPicker from "expo-document-picker";
 declare const window: any;
+
+/* MASTER PHASES DATA */
+const MASTER_PHASES = [
+  // 1. Pre-Construction & Planning
+  {
+    name: "Site Survey & Soil Testing",
+    category: "Planning",
+    floors: ["Main Project"],
+  },
+  {
+    name: "Architectural Design & Approval",
+    category: "Planning",
+    floors: ["Main Project"],
+  },
+  {
+    name: "Structural Design & Validation",
+    category: "Planning",
+    floors: ["Main Project"],
+  },
+  {
+    name: "Government Permits & Clearances",
+    category: "Planning",
+    floors: ["Main Project"],
+  },
+  {
+    name: "Temporary Site Fencing & Office Setup",
+    category: "Mobilization",
+    floors: ["Main Project"],
+  },
+
+  // 2. Foundation & Substructure
+  {
+    name: "Excavation & Earthwork",
+    category: "Foundation",
+    floors: ["Basement", "Ground Floor"],
+  },
+  {
+    name: "Anti-Termite Treatment",
+    category: "Foundation",
+    floors: ["Basement", "Ground Floor"],
+  },
+  {
+    name: "PCC (Plain Cement Concrete) Bedding",
+    category: "Foundation",
+    floors: ["Basement", "Ground Floor"],
+  },
+  {
+    name: "Footing Reinforcement & Shuttering",
+    category: "Foundation",
+    floors: ["Basement", "Ground Floor"],
+  },
+  {
+    name: "Footing Concrete Pouring",
+    category: "Foundation",
+    floors: ["Basement", "Ground Floor"],
+  },
+  {
+    name: "Column Starter Marking (Foundation Level)",
+    category: "Structure",
+    floors: ["Basement"],
+  },
+
+  // 3. Superstructure (Repeats for floors)
+  {
+    name: "Column Reinforcement & Shuttering",
+    category: "Structure",
+    floors: ["All"],
+  },
+  { name: "Column Concrete Pouring", category: "Structure", floors: ["All"] },
+  { name: "Beam & Slab Shuttering", category: "Structure", floors: ["All"] },
+  {
+    name: "Slab Reinforcement Binding",
+    category: "Structure",
+    floors: ["All"],
+  },
+  {
+    name: "Electrical Conduiting (Slab Level)",
+    category: "MEP",
+    floors: ["All"],
+  },
+  { name: "Slab Concrete Pouring", category: "Structure", floors: ["All"] },
+  { name: "Curing & De-shuttering", category: "Structure", floors: ["All"] },
+
+  // 4. Masonry & Wall Finishes
+  {
+    name: "Blockwork / Brickwork Layout",
+    category: "Masonry",
+    floors: ["All"],
+  },
+  { name: "Lintel Level Concrete", category: "Masonry", floors: ["All"] },
+  { name: "Internal Plastering", category: "Finishing", floors: ["All"] },
+  { name: "External Plastering", category: "Finishing", floors: ["All"] },
+
+  // 5. MEP (Mechanical, Electrical, Plumbing)
+  {
+    name: "Wall Chasing for Electrical & Plumbing",
+    category: "MEP",
+    floors: ["All"],
+  },
+  { name: "Plumbing Piping Fixing", category: "MEP", floors: ["All"] },
+  {
+    name: "Electrical Wiring & Switch Box Fixing",
+    category: "MEP",
+    floors: ["All"],
+  },
+  { name: "HVAC Ducting & Piping", category: "MEP", floors: ["All"] },
+  {
+    name: "Waterproofing (Toilets & Terraces)",
+    category: "MEP",
+    floors: ["All", "Terrace"],
+  },
+
+  // 6. Flooring & Tiling
+  { name: "Floor Levelling (PCC)", category: "Flooring", floors: ["All"] },
+  { name: "Tiling / Marble Laying", category: "Flooring", floors: ["All"] },
+  { name: "Skirting Fixing", category: "Flooring", floors: ["All"] },
+  { name: "Bathroom Wall Tiling", category: "Flooring", floors: ["All"] },
+
+  // 7. Woodwork & Fixtures
+  { name: "Door Frame Fixing", category: "Joinery", floors: ["All"] },
+  {
+    name: "Window Grill & Frame Installation",
+    category: "Joinery",
+    floors: ["All"],
+  },
+  { name: "Door Shutter Fixing", category: "Joinery", floors: ["All"] },
+  {
+    name: "Kitchen Cabinet Installation",
+    category: "Interiors",
+    floors: ["All"],
+  },
+  {
+    name: "Wardrobe & Cupboard Installation",
+    category: "Interiors",
+    floors: ["All"],
+  },
+
+  // 8. Painting & Final Cleanup
+  { name: "Wall Putty (2 Coats)", category: "Painting", floors: ["All"] },
+  { name: "Primer Application", category: "Painting", floors: ["All"] },
+  {
+    name: "Final Paint Coat (Internal & External)",
+    category: "Painting",
+    floors: ["All"],
+  },
+  {
+    name: "Electrical Fixture Installation (Lights/Fans)",
+    category: "MEP",
+    floors: ["All"],
+  },
+  { name: "Plumbing Fixture Installation", category: "MEP", floors: ["All"] },
+  {
+    name: "Final Site Cleanup & Handover",
+    category: "Completion",
+    floors: ["Main Project"],
+  },
+];
+
+const AVAILABLE_FLOORS = [
+  "Main Project",
+  "Basement",
+  "Ground Floor",
+  "First Floor",
+  "Second Floor",
+  "Third Floor",
+  "Fourth Floor",
+  "Terrace",
+];
 
 // Dummy Data for Projects Project List
 const SafeScrollContainer = ScrollView;
@@ -163,11 +335,11 @@ const CustomDatePicker = ({
     const selected = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth(),
-      day
+      day,
     );
     // Format: DD/MM/YYYY
     const formatted = `${String(day).padStart(2, "0")}/${String(
-      currentDate.getMonth() + 1
+      currentDate.getMonth() + 1,
     ).padStart(2, "0")}/${currentDate.getFullYear()}`;
     onSelect(formatted);
     onClose();
@@ -257,10 +429,10 @@ const CustomDateRangePicker = ({
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [startDate, setStartDate] = useState<Date | null>(
-    initialFrom ? new Date(initialFrom) : null
+    initialFrom ? new Date(initialFrom) : null,
   );
   const [endDate, setEndDate] = useState<Date | null>(
-    initialTo ? new Date(initialTo) : null
+    initialTo ? new Date(initialTo) : null,
   );
 
   useEffect(() => {
@@ -392,10 +564,10 @@ const CustomDateRangePicker = ({
                   if (preset.type === "month") {
                     const now = new Date();
                     setStartDate(
-                      new Date(now.getFullYear(), now.getMonth(), 1)
+                      new Date(now.getFullYear(), now.getMonth(), 1),
                     );
                     setEndDate(
-                      new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                      new Date(now.getFullYear(), now.getMonth() + 1, 0),
                     );
                   } else {
                     applyPreset(preset.days || 0);
@@ -447,7 +619,7 @@ const CustomDateRangePicker = ({
             <TouchableOpacity
               onPress={() =>
                 setCurrentMonth(
-                  new Date(currentMonth.setMonth(currentMonth.getMonth() - 1))
+                  new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)),
                 )
               }
             >
@@ -459,7 +631,7 @@ const CustomDateRangePicker = ({
             <TouchableOpacity
               onPress={() =>
                 setCurrentMonth(
-                  new Date(currentMonth.setMonth(currentMonth.getMonth() + 1))
+                  new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)),
                 )
               }
             >
@@ -583,9 +755,17 @@ interface DashboardStats {
 }
 
 // Helper to generate clean, professional HTML for the report
-const generateProjectReportHTML = (project: any, client: any, stats: any, phases: any[]) => {
-  const date = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+const generateProjectReportHTML = (
+  project: any,
+  client: any,
+  stats: any,
+  phases: any[],
+) => {
+  const date = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
   return `
@@ -728,19 +908,19 @@ const generateProjectReportHTML = (project: any, client: any, stats: any, phases
             </div>
             <div class="info-card">
               <div class="info-label">Phone Number</div>
-              <div class="info-value">${client.phone || '-'}</div>
+              <div class="info-value">${client.phone || "-"}</div>
             </div>
             <div class="info-card">
               <div class="info-label">Email Address</div>
-              <div class="info-value">${client.email || '-'}</div>
+              <div class="info-value">${client.email || "-"}</div>
             </div>
             <div class="info-card">
               <div class="info-label">Start Date</div>
-              <div class="info-value">${project.startDate || '-'}</div>
+              <div class="info-value">${project.startDate || "-"}</div>
             </div>
             <div class="info-card">
               <div class="info-label">End Date</div>
-              <div class="info-value">${project.endDate || '-'}</div>
+              <div class="info-value">${project.endDate || "-"}</div>
             </div>
             <div class="info-card">
               <div class="info-label">Duration</div>
@@ -840,11 +1020,10 @@ const AdminDashboardScreen = () => {
   }>({ tasks: [], materials: [] });
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalTab, setApprovalTab] = useState<"Tasks" | "Materials">(
-    "Tasks"
+    "Tasks",
   );
 
   // Floor-Based Stage Creation State
-  const [addStageModalVisible, setAddStageModalVisible] = useState(false);
   const [newStageFloor, setNewStageFloor] = useState("");
   const [newStageName, setNewStageName] = useState("");
 
@@ -852,18 +1031,24 @@ const AdminDashboardScreen = () => {
   const [customFloorInputVisible, setCustomFloorInputVisible] = useState(false);
   const [customFloorInput, setCustomFloorInput] = useState("");
 
-  const INITIAL_FLOORS = ["Basement", "Ground Floor", "First Floor", "Second Floor", "Roof / Terrace", "Other"];
+  const INITIAL_FLOORS = [
+    "Basement",
+    "Ground Floor",
+    "First Floor",
+    "Second Floor",
+    "Roof / Terrace",
+    "Other",
+  ];
   const INITIAL_FLOOR_MAP: Record<string, number> = {
-    "Basement": -1,
+    Basement: -1,
     "Ground Floor": 0,
     "First Floor": 1,
     "Second Floor": 2,
     "Roof / Terrace": 3,
-    "Other": 99
+    Other: 99,
   };
 
   // Serial Number State
-  const [newStageSerialNumber, setNewStageSerialNumber] = useState("");
 
   // Edit Phase State
   const [editPhaseModalVisible, setEditPhaseModalVisible] = useState(false);
@@ -871,18 +1056,38 @@ const AdminDashboardScreen = () => {
   const [editingPhaseName, setEditingPhaseName] = useState("");
   const [editingPhaseFloor, setEditingPhaseFloor] = useState("");
   const [editingPhaseSerialNumber, setEditingPhaseSerialNumber] = useState("");
-  const [editCustomFloorInputVisible, setEditCustomFloorInputVisible] = useState(false);
+  const [editCustomFloorInputVisible, setEditCustomFloorInputVisible] =
+    useState(false);
   const [editCustomFloorInput, setEditCustomFloorInput] = useState("");
 
-  const [availableFloors, setAvailableFloors] = useState<string[]>(INITIAL_FLOORS);
-  const [floorMap, setFloorMap] = useState<Record<string, number>>(INITIAL_FLOOR_MAP);
+  const [availableFloors, setAvailableFloors] =
+    useState<string[]>(INITIAL_FLOORS);
+  const [floorMap, setFloorMap] =
+    useState<Record<string, number>>(INITIAL_FLOOR_MAP);
 
   // Stage Options Menu State
   const [stageOptionsVisible, setStageOptionsVisible] = useState(false);
-  const [selectedStageOption, setSelectedStageOption] = useState<{ id: number; name: string; floor?: string; serial_number?: any } | null>(null);
+  const [selectedStageOption, setSelectedStageOption] = useState<{
+    id: number;
+    name: string;
+    floor?: string;
+    serial_number?: any;
+  } | null>(null);
 
   const getFloorNameFromNumber = (num: number) => {
-    const smallNumbers = ["Ground", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
+    const smallNumbers = [
+      "Ground",
+      "First",
+      "Second",
+      "Third",
+      "Fourth",
+      "Fifth",
+      "Sixth",
+      "Seventh",
+      "Eighth",
+      "Ninth",
+      "Tenth",
+    ];
     if (num <= 10 && num >= 0) return `${smallNumbers[num]} Floor`;
 
     // Fallback for larger numbers
@@ -937,7 +1142,7 @@ const AdminDashboardScreen = () => {
     }
 
     // Check if marking as completed
-    if (data.status === 'Completed') {
+    if (data.status === "Completed") {
       setUnlockedMilestoneName(data.name);
       if (!data.actual_completion_date) {
         data.actual_completion_date = new Date().toISOString();
@@ -953,13 +1158,15 @@ const AdminDashboardScreen = () => {
         // Create
         await api.post(`/admin/milestones`, {
           ...data,
-          siteId: selectedSite.id
+          siteId: selectedSite.id,
         });
         showToast("Milestone created successfully", "success");
       }
 
       // Refresh milestones
-      const milesRes = await api.get(`/admin/sites/${selectedSite.id}/milestones`);
+      const milesRes = await api.get(
+        `/admin/sites/${selectedSite.id}/milestones`,
+      );
       const milestones = (milesRes.data || []).map((m: any) => ({
         ...m,
         status: m.status || "Not Started",
@@ -971,10 +1178,12 @@ const AdminDashboardScreen = () => {
       setProjectPhases(phasesRes.data.phases || []);
 
       Alert.alert("Success", "Milestone saved successfully.");
-
     } catch (error: any) {
       console.error("Error saving milestone:", error);
-      Alert.alert("Save Failed", error?.response?.data?.message || error.message || "An error occurred.");
+      Alert.alert(
+        "Save Failed",
+        error?.response?.data?.message || error.message || "An error occurred.",
+      );
       throw error;
     }
   };
@@ -987,7 +1196,9 @@ const AdminDashboardScreen = () => {
       showToast("Milestone deleted successfully", "success");
 
       // Refresh milestones
-      const milesRes = await api.get(`/admin/sites/${selectedSite.id}/milestones`);
+      const milesRes = await api.get(
+        `/admin/sites/${selectedSite.id}/milestones`,
+      );
       const milestones = (milesRes.data || []).map((m: any) => ({
         ...m,
         status: m.status || "Not Started",
@@ -997,7 +1208,6 @@ const AdminDashboardScreen = () => {
       // Refresh phases (as linkage might have changed)
       const phasesRes = await api.get(`/sites/${selectedSite.id}/phases`);
       setProjectPhases(phasesRes.data.phases || []);
-
     } catch (error) {
       console.error("Error deleting milestone:", error);
       showToast("Failed to delete milestone", "error");
@@ -1032,16 +1242,17 @@ const AdminDashboardScreen = () => {
     }
 
     try {
-      const floorNum = floorMap[newStageFloor] !== undefined ? floorMap[newStageFloor] : 0;
+      const floorNum =
+        floorMap[newStageFloor] !== undefined ? floorMap[newStageFloor] : 0;
 
-      console.log('[handleAddNewStage] Sending request:', {
+      console.log("[handleAddNewStage] Sending request:", {
         siteId: selectedSite.id,
         name: newStageName,
         floorName: newStageFloor,
         floorNumber: floorNum,
         budget: 0,
         orderNum: 999,
-        serialNumber: serialNum
+        serialNumber: serialNum,
       });
 
       const response = await api.post("/phases", {
@@ -1051,10 +1262,10 @@ const AdminDashboardScreen = () => {
         floorNumber: floorNum,
         budget: 0,
         orderNum: 999,
-        serialNumber: serialNum
+        serialNumber: serialNum,
       });
 
-      console.log('[handleAddNewStage] Response:', response.data);
+      console.log("[handleAddNewStage] Response:", response.data);
 
       showToast("Stage added successfully", "success");
       setAddStageModalVisible(false);
@@ -1065,8 +1276,9 @@ const AdminDashboardScreen = () => {
       // Refresh project details
       await fetchProjectDetails(selectedSite.id);
     } catch (error: any) {
-      console.error('[handleAddNewStage] Error:', error);
-      const errorMessage = error.response?.data?.message || "Failed to add stage";
+      console.error("[handleAddNewStage] Error:", error);
+      const errorMessage =
+        error.response?.data?.message || "Failed to add stage";
       showToast(errorMessage, "error");
     }
   };
@@ -1104,13 +1316,16 @@ const AdminDashboardScreen = () => {
     if (!editingPhaseId) return;
 
     try {
-      const floorNum = floorMap[editingPhaseFloor] !== undefined ? floorMap[editingPhaseFloor] : 0;
+      const floorNum =
+        floorMap[editingPhaseFloor] !== undefined
+          ? floorMap[editingPhaseFloor]
+          : 0;
 
       await api.put(`/phases/${editingPhaseId}`, {
         name: editingPhaseName,
         floorName: editingPhaseFloor,
         floorNumber: floorNum,
-        serialNumber: serialNum
+        serialNumber: serialNum,
       });
 
       showToast("Stage updated successfully", "success");
@@ -1123,7 +1338,8 @@ const AdminDashboardScreen = () => {
       if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
     } catch (error: any) {
       console.error(error);
-      const errorMsg = error.response?.data?.message || "Failed to update stage";
+      const errorMsg =
+        error.response?.data?.message || "Failed to update stage";
       Alert.alert("Error", errorMsg);
     }
   };
@@ -1137,7 +1353,6 @@ const AdminDashboardScreen = () => {
     setEditPhaseModalVisible(true);
     setStageOptionsVisible(false);
   };
-
 
   const fetchApprovals = async () => {
     setApprovalLoading(true);
@@ -1180,9 +1395,12 @@ const AdminDashboardScreen = () => {
     try {
       // 1. Calculate Stats
       const totalTasks = projectTasks.length;
-      const completedTasks = projectTasks.filter((t: any) => t.status === 'Completed' || t.status === 'completed').length;
+      const completedTasks = projectTasks.filter(
+        (t: any) => t.status === "Completed" || t.status === "completed",
+      ).length;
       const pendingTasks = totalTasks - completedTasks;
-      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      const progress =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
       // Calculate Days Remaining
       const parseDate = (dStr: string) => {
@@ -1195,20 +1413,23 @@ const AdminDashboardScreen = () => {
       today.setHours(0, 0, 0, 0);
       let daysRemaining = 0;
       if (end) {
-        daysRemaining = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24)));
+        daysRemaining = Math.max(
+          0,
+          Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24)),
+        );
       }
 
       const clientInfo = {
         name: formData.clientName,
         phone: formData.clientPhone,
-        email: formData.clientEmail
+        email: formData.clientEmail,
       };
 
       const projectInfo = {
         name: formData.name,
         address: formData.address,
         startDate: formData.startDate,
-        endDate: formData.endDate
+        endDate: formData.endDate,
       };
 
       const statsInfo = {
@@ -1216,11 +1437,16 @@ const AdminDashboardScreen = () => {
         completedTasks,
         pendingTasks,
         totalTasks,
-        daysRemaining
+        daysRemaining,
       };
 
       // 2. Generate HTML
-      const html = generateProjectReportHTML(projectInfo, clientInfo, statsInfo, settingsPhases);
+      const html = generateProjectReportHTML(
+        projectInfo,
+        clientInfo,
+        statsInfo,
+        settingsPhases,
+      );
 
       // 3. Print to PDF
       const { uri } = await Print.printToFileAsync({ html });
@@ -1230,9 +1456,9 @@ const AdminDashboardScreen = () => {
       // The standard way is using Sharing.shareAsync which opens the system sheet, where the user selects WhatsApp.
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Share Project Status Report',
-          UTI: 'com.adobe.pdf'
+          mimeType: "application/pdf",
+          dialogTitle: "Share Project Status Report",
+          UTI: "com.adobe.pdf",
         });
 
         // Optional: Track in backend here
@@ -1241,7 +1467,6 @@ const AdminDashboardScreen = () => {
       } else {
         Alert.alert("Error", "Sharing is not available on this device");
       }
-
     } catch (error) {
       console.error("Error generating PDF:", error);
       Alert.alert("Error", "Failed to generate project report");
@@ -1255,14 +1480,14 @@ const AdminDashboardScreen = () => {
     visible: false,
     title: "",
     message: "",
-    onConfirm: () => { },
+    onConfirm: () => {},
   });
 
   const togglePhase = (phaseId: number) => {
     setExpandedPhaseIds((prev) =>
       prev.includes(phaseId)
         ? prev.filter((id) => id !== phaseId)
-        : [...prev, phaseId]
+        : [...prev, phaseId],
     );
   };
 
@@ -1298,7 +1523,9 @@ const AdminDashboardScreen = () => {
         await api.put(`/notifications/${notification.id}/read`);
         setUnreadCount((prev) => Math.max(0, prev - 1));
         setNotifications((prev) =>
-          prev.map((n) => (n.id === notification.id ? { ...n, is_read: 1 } : n))
+          prev.map((n) =>
+            n.id === notification.id ? { ...n, is_read: 1 } : n,
+          ),
         );
       }
 
@@ -1400,7 +1627,7 @@ const AdminDashboardScreen = () => {
   const fetchCompletedTasksList = async (
     filter: string,
     customSiteId?: number | "all",
-    customRange?: { from: string; to: string } | null
+    customRange?: { from: string; to: string } | null,
   ) => {
     setCompletedListLoading(true);
     try {
@@ -1510,7 +1737,7 @@ const AdminDashboardScreen = () => {
 
   const handleUpdateMaterialStatus = async (
     id: number,
-    status: "Approved" | "Rejected"
+    status: "Approved" | "Rejected",
   ) => {
     try {
       await api.put(`/materials/${id}/status`, { status });
@@ -1556,7 +1783,6 @@ const AdminDashboardScreen = () => {
     }
   }, []);
 
-
   // Effect to fetch project materials when tab changes
   useEffect(() => {
     if (activeProjectTab === "Materials" && selectedSiteId) {
@@ -1567,7 +1793,15 @@ const AdminDashboardScreen = () => {
   // Files State
   const [projectPhases, setProjectPhases] = useState<any[]>([]);
   const [projectMilestones, setProjectMilestones] = useState<any[]>([]); // NEW
-  const [addMilestoneModalVisible, setAddMilestoneModalVisible] = useState(false); // NEW
+
+  // Add Stage State
+  const [addStageModalVisible, setAddStageModalVisible] = useState(false);
+  const [newStageFloors, setNewStageFloors] = useState<string[]>([]);
+  const [newStagePhase, setNewStagePhase] = useState<any>(null);
+  const [phaseSearchQuery, setPhaseSearchQuery] = useState("");
+  const [newStageSerialNumber, setNewStageSerialNumber] = useState("");
+  const [addMilestoneModalVisible, setAddMilestoneModalVisible] =
+    useState(false); // NEW
   const [editingMilestone, setEditingMilestone] = useState<any>(null); // NEW
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [projectLoading, setProjectLoading] = useState(false);
@@ -1595,7 +1829,7 @@ const AdminDashboardScreen = () => {
   // Employee State
   const [employeeModalVisible, setEmployeeModalVisible] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(
-    null
+    null,
   );
   const [newEmployee, setNewEmployee] = useState<{
     name: string;
@@ -1642,10 +1876,13 @@ const AdminDashboardScreen = () => {
   const [projectSettingsVisible, setProjectSettingsVisible] = useState(false);
 
   // Delete Project Confirmation State
-  const [deleteProjectModalVisible, setDeleteProjectModalVisible] = useState(false);
+  const [deleteProjectModalVisible, setDeleteProjectModalVisible] =
+    useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [projectToDelete, setProjectToDelete] = useState<{ id: number; name: string } | null>(null);
-
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   // Chat / Stage Progress Modal State
   const [chatPhaseId, setChatPhaseId] = useState<number | null>(null);
@@ -1682,7 +1919,9 @@ const AdminDashboardScreen = () => {
   };
 
   // Achievement System State
-  const [unlockedMilestoneName, setUnlockedMilestoneName] = useState<string | null>(null);
+  const [unlockedMilestoneName, setUnlockedMilestoneName] = useState<
+    string | null
+  >(null);
   const processedMilestoneIds = React.useRef(new Set<number>());
 
   const isFocused = useIsFocused();
@@ -1694,7 +1933,7 @@ const AdminDashboardScreen = () => {
       fetchSites();
       fetchEmployees();
       fetchDashboardStats();
-    }, [])
+    }, []),
   );
 
   // Auto-refresh project details when screen gains focus (e.g. returning from assignment)
@@ -1730,6 +1969,64 @@ const AdminDashboardScreen = () => {
       setSites(response.data.sites || []);
     } catch (error) {
       console.log("Error fetching sites:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveNewStage = async () => {
+    if (!newStagePhase || newStageFloors.length === 0) {
+      showToast("Please select at least one floor and a phase", "error");
+      return;
+    }
+
+    if (!selectedSite?.id) {
+      showToast("Please select a project first", "error");
+      return;
+    }
+
+    // Validate serial number
+    const serialNum = parseInt(newStageSerialNumber);
+    if (!newStageSerialNumber || isNaN(serialNum) || serialNum <= 0) {
+      showToast("Please enter a valid serial number", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const project_id = selectedSite.id;
+
+      // We will perform parallel API calls for each floor
+      const promises = newStageFloors.map((floor) => {
+        return api.post("/phases", {
+          siteId: project_id,
+          name: newStagePhase.name,
+          floorName: floor === "Main Project" ? "Main Project" : floor,
+          orderNum: serialNum,
+          budget: 0,
+          status: "Pending",
+        });
+      });
+
+      await Promise.all(promises);
+
+      showToast("✓ Stages added successfully", "success");
+      setAddStageModalVisible(false);
+      setNewStageFloors([]);
+      setNewStagePhase(null);
+      setPhaseSearchQuery("");
+      setNewStageSerialNumber("");
+
+      // Refresh project details
+      if (project_id) {
+        fetchProjectDetails(project_id);
+      }
+    } catch (error) {
+      console.error("Error adding stages:", error);
+      const errorMsg =
+        error?.response?.data?.message ||
+        "Failed to add stages. Please check the data and try again.";
+      showToast(errorMsg, "error");
     } finally {
       setLoading(false);
     }
@@ -1876,10 +2173,10 @@ const AdminDashboardScreen = () => {
               >
                 {dateRange
                   ? `${new Date(
-                    dateRange.from
-                  ).toLocaleDateString()} - ${new Date(
-                    dateRange.to
-                  ).toLocaleDateString()}`
+                      dateRange.from,
+                    ).toLocaleDateString()} - ${new Date(
+                      dateRange.to,
+                    ).toLocaleDateString()}`
                   : "Select Date Range"}
               </Text>
               {dateRange && (
@@ -1889,7 +2186,7 @@ const AdminDashboardScreen = () => {
                     fetchCompletedTasksList(
                       completedTaskFilter,
                       filterSiteId,
-                      null
+                      null,
                     );
                   }}
                 >
@@ -1959,7 +2256,7 @@ const AdminDashboardScreen = () => {
                   fetchCompletedTasksList(
                     completedTaskFilter,
                     site.id,
-                    dateRange
+                    dateRange,
                   );
                 }}
               >
@@ -2117,7 +2414,7 @@ const AdminDashboardScreen = () => {
                                 >
                                   Completed:{" "}
                                   {new Date(
-                                    task.completed_at
+                                    task.completed_at,
                                   ).toLocaleDateString()}
                                 </Text>
                               </View>
@@ -2142,11 +2439,11 @@ const AdminDashboardScreen = () => {
                               )}
                             </View>
                           </View>
-                        )
+                        ),
                       )}
                     </View>
                   </View>
-                )
+                ),
               )}
             </View>
           ))
@@ -2162,7 +2459,7 @@ const AdminDashboardScreen = () => {
     const pendingTasks = tasks.filter(
       (t: any) =>
         t.status?.toLowerCase() === "waiting_for_approval" ||
-        t.status?.toLowerCase() === "waiting approval"
+        t.status?.toLowerCase() === "waiting approval",
     );
 
     // Group Tasks by Project -> Phase
@@ -2432,146 +2729,146 @@ const AdminDashboardScreen = () => {
                                     {/* Edit/Delete Actions */}
                                   </View>
                                 </View>
-                              )
+                              ),
                             )}
                           </View>
                         </View>
-                      )
+                      ),
                     )}
                   </View>
                 ))
               )
             ) : // Materials Tab (Unchanged)
-              materials.length === 0 ? (
-                <View style={{ alignItems: "center", marginTop: 50 }}>
-                  <View
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      backgroundColor: "#F3F4F6",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 16,
-                    }}
-                  >
-                    <Ionicons name="cube-outline" size={32} color="#9CA3AF" />
-                  </View>
-                  <Text style={{ color: "#9ca3af", fontSize: 16 }}>
-                    No pending material requests
-                  </Text>
+            materials.length === 0 ? (
+              <View style={{ alignItems: "center", marginTop: 50 }}>
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    backgroundColor: "#F3F4F6",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Ionicons name="cube-outline" size={32} color="#9CA3AF" />
                 </View>
-              ) : (
-                materials.map((item: any) => (
-                  <View
-                    key={item.id}
-                    style={{
-                      backgroundColor: "#fff",
-                      padding: 16,
-                      borderRadius: 12,
-                      marginBottom: 12,
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      shadowColor: "#000",
-                      shadowOpacity: 0.05,
-                      shadowRadius: 3,
-                      elevation: 1,
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: "#111827",
-                        }}
-                      >
-                        {item.item_name || item.material_name}
-                      </Text>
-                      <Text
-                        style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}
-                      >
-                        Quantity:{" "}
-                        <Text style={{ fontWeight: "500" }}>{item.quantity}</Text>
-                      </Text>
-                      <Text
-                        style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
-                      >
-                        {item.site_name} • {item.employee_name}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#FEE2E2",
-                          borderRadius: 8,
-                        }}
-                        onPress={() => {
-                          setConfirmModal({
-                            visible: true,
-                            title: "Confirm Rejection",
-                            message:
-                              "Are you sure you want to reject this material request?",
-                            onConfirm: async () => {
-                              setConfirmModal((prev) => ({
-                                ...prev,
-                                visible: false,
-                              }));
-                              await handleRejectMaterial(item.id);
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#EF4444",
-                            fontSize: 12,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Reject
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#D1FAE5",
-                          borderRadius: 8,
-                        }}
-                        onPress={() => {
-                          setConfirmModal({
-                            visible: true,
-                            title: "Confirm Approval",
-                            message:
-                              "Are you sure you want to approve this material request?",
-                            onConfirm: async () => {
-                              setConfirmModal((prev) => ({
-                                ...prev,
-                                visible: false,
-                              }));
-                              await handleApproveMaterial(item.id);
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#10B981",
-                            fontSize: 12,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Approve
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                <Text style={{ color: "#9ca3af", fontSize: 16 }}>
+                  No pending material requests
+                </Text>
+              </View>
+            ) : (
+              materials.map((item: any) => (
+                <View
+                  key={item.id}
+                  style={{
+                    backgroundColor: "#fff",
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 12,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    shadowColor: "#000",
+                    shadowOpacity: 0.05,
+                    shadowRadius: 3,
+                    elevation: 1,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#111827",
+                      }}
+                    >
+                      {item.item_name || item.material_name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}
+                    >
+                      Quantity:{" "}
+                      <Text style={{ fontWeight: "500" }}>{item.quantity}</Text>
+                    </Text>
+                    <Text
+                      style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
+                    >
+                      {item.site_name} • {item.employee_name}
+                    </Text>
                   </View>
-                ))
-              )}
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        backgroundColor: "#FEE2E2",
+                        borderRadius: 8,
+                      }}
+                      onPress={() => {
+                        setConfirmModal({
+                          visible: true,
+                          title: "Confirm Rejection",
+                          message:
+                            "Are you sure you want to reject this material request?",
+                          onConfirm: async () => {
+                            setConfirmModal((prev) => ({
+                              ...prev,
+                              visible: false,
+                            }));
+                            await handleRejectMaterial(item.id);
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#EF4444",
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Reject
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        backgroundColor: "#D1FAE5",
+                        borderRadius: 8,
+                      }}
+                      onPress={() => {
+                        setConfirmModal({
+                          visible: true,
+                          title: "Confirm Approval",
+                          message:
+                            "Are you sure you want to approve this material request?",
+                          onConfirm: async () => {
+                            setConfirmModal((prev) => ({
+                              ...prev,
+                              visible: false,
+                            }));
+                            await handleApproveMaterial(item.id);
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#10B981",
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Approve
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>
@@ -2619,17 +2916,17 @@ const AdminDashboardScreen = () => {
         setProjectMilestones(milestones);
 
         // Check for newly achieved milestones
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
         milestones.forEach((m: any) => {
-          if (m.status === 'Completed') {
+          if (m.status === "Completed") {
             const isProcessed = processedMilestoneIds.current.has(m.id);
             // Check if completed today (or recently if actual_completion_date is missing but status is completed)
             // For robustness, if actual_completion_date is today.
             let completedDate = null;
             if (m.actual_completion_date) {
               // Handle various date formats if needed, but ISO expected from backend
-              if (m.actual_completion_date.includes('T')) {
-                completedDate = m.actual_completion_date.split('T')[0];
+              if (m.actual_completion_date.includes("T")) {
+                completedDate = m.actual_completion_date.split("T")[0];
               } else {
                 completedDate = m.actual_completion_date;
               }
@@ -2642,11 +2939,9 @@ const AdminDashboardScreen = () => {
             processedMilestoneIds.current.add(m.id);
           }
         });
-
       } catch (err) {
         console.log("Error fetching milestones", err);
       }
-
     } catch (error) {
       console.error("Error fetching project details:", error);
       showToast("Failed to load project details", "error");
@@ -2655,10 +2950,11 @@ const AdminDashboardScreen = () => {
     }
   };
 
-
-
   /* Delete Phase Logic */
-  const [phaseToDelete, setPhaseToDelete] = useState<{ id: number; name: string } | null>(null);
+  const [phaseToDelete, setPhaseToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   const performDeletePhase = async () => {
     if (!phaseToDelete) return;
@@ -2689,7 +2985,10 @@ const AdminDashboardScreen = () => {
   };
 
   /* Delete Task Logic */
-  const [taskToDelete, setTaskToDelete] = useState<{ id: number; name: string } | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   const handleDeleteTaskPress = (task: any) => {
     setTaskToDelete({ id: task.id, name: task.name });
@@ -2714,10 +3013,6 @@ const AdminDashboardScreen = () => {
     }
   };
 
-
-
-
-
   const handleAddTask = async () => {
     if (!selectedSite || !newTaskName.trim() || !activePhaseId) {
       showToast("Please enter a task name", "error");
@@ -2735,7 +3030,7 @@ const AdminDashboardScreen = () => {
         siteId: selectedSite.id,
         phaseId: activePhaseId,
         name: newTaskName,
-        orderIndex: orderNum
+        orderIndex: orderNum,
       });
       showToast("Task added successfully", "success");
       setAddTaskModalVisible(false);
@@ -2817,7 +3112,7 @@ const AdminDashboardScreen = () => {
 
   const showToast = (
     message: string,
-    type: "success" | "error" = "success"
+    type: "success" | "error" = "success",
   ) => {
     setToast({ visible: true, message, type });
   };
@@ -2828,7 +3123,7 @@ const AdminDashboardScreen = () => {
 
   const openDatePicker = (
     field: "task_start" | "task_due" | "project_start" | "project_end",
-    title: string
+    title: string,
   ) => {
     setDatePicker({ visible: true, field, title });
   };
@@ -2949,7 +3244,7 @@ const AdminDashboardScreen = () => {
   // --- REPORT GENERATION & EXPORT ---
   const generateReportHTML = () => {
     const completedTasks = projectTasks.filter(
-      (t) => t.status === "Completed" || t.status === "completed"
+      (t) => t.status === "Completed" || t.status === "completed",
     ).length;
     const totalTasks = projectTasks.length;
     const pendingTasks = totalTasks - completedTasks;
@@ -3158,12 +3453,13 @@ const AdminDashboardScreen = () => {
                 <div class="container">
                     <!-- Header -->
                     <div class="header">
-                        <h1 class="project-title">${formData.name || "Project Name"
-      }</h1>
+                        <h1 class="project-title">${
+                          formData.name || "Project Name"
+                        }</h1>
                         <p class="subtitle">Project Portfolio Report</p>
                         <p class="date">Generated on ${new Date().toLocaleDateString(
-        "en-GB"
-      )}</p>
+                          "en-GB",
+                        )}</p>
                     </div>
 
                     <div class="portfolio-grid">
@@ -3174,30 +3470,35 @@ const AdminDashboardScreen = () => {
                             
                             <div class="info-row">
                                 <div class="info-label">Project Name</div>
-                                <div class="info-value">${formData.name || "-"
-      }</div>
+                                <div class="info-value">${
+                                  formData.name || "-"
+                                }</div>
                             </div>
                             <div class="info-row">
                                 <div class="info-label">Project Location</div>
-                                <div class="info-value">${formData.address || "-"
-      }</div>
+                                <div class="info-value">${
+                                  formData.address || "-"
+                                }</div>
                             </div>
                             
                             <div style="margin-top: 40px;">
                                 <div class="info-row">
                                     <div class="info-label">Client Name</div>
-                                    <div class="info-value">${formData.clientName || "Not Specified"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientName || "Not Specified"
+                                    }</div>
                                 </div>
                                 <div class="info-row">
                                     <div class="info-label">Client Phone</div>
-                                    <div class="info-value">${formData.clientPhone || "-"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientPhone || "-"
+                                    }</div>
                                 </div>
                                 <div class="info-row">
                                     <div class="info-label">Client Email</div>
-                                    <div class="info-value">${formData.clientEmail || "-"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientEmail || "-"
+                                    }</div>
                                 </div>
                             </div>
                         </div>
@@ -3225,8 +3526,8 @@ const AdminDashboardScreen = () => {
                                 <div class="info-row" style="margin-bottom: 10px;">
                                     <div class="info-label">Project Duration</div>
                                     <div class="info-value">${formatDate(
-        start
-      )}  ➝  ${formatDate(end)}</div>
+                                      start,
+                                    )}  ➝  ${formatDate(end)}</div>
                                 </div>
                                 <div class="info-label">Total Days: <span style="color: #111827;">${durationDays}</span></div>
                             </div>
@@ -3326,7 +3627,7 @@ const AdminDashboardScreen = () => {
   const handleDirectWhatsAppShare = async () => {
     // 1. Gather Data & Calculations
     const completedTasks = projectTasks.filter(
-      (t) => t.status === "Completed" || t.status === "completed"
+      (t) => t.status === "Completed" || t.status === "completed",
     ).length;
     const totalTasks = projectTasks.length;
     const progress =
@@ -3391,7 +3692,7 @@ Project Team`;
 
     // 5. Open Link
     const url = `https://wa.me/${clientPhone}?text=${encodeURIComponent(
-      message
+      message,
     )}`;
     try {
       await Linking.openURL(url);
@@ -3458,7 +3759,7 @@ Project Team`;
       console.error("Error saving project:", error);
       showToast(
         isEditing ? "Failed to update project" : "Failed to create project",
-        "error"
+        "error",
       );
     }
   };
@@ -3490,7 +3791,7 @@ Project Team`;
       console.error("Error deleting project:", error);
       showToast(
         error.response?.data?.message || "Failed to delete project",
-        "error"
+        "error",
       );
     }
   };
@@ -3540,7 +3841,7 @@ Project Team`;
       console.error("Error saving employee:", error);
       showToast(
         error.response?.data?.message || "Failed to save employee",
-        "error"
+        "error",
       );
     }
   };
@@ -3586,7 +3887,7 @@ Project Team`;
     if (Platform.OS === "web") {
       if (
         (window as any).confirm(
-          `Are you sure you want to delete employee "${name}"?`
+          `Are you sure you want to delete employee "${name}"?`,
         )
       ) {
         performDelete();
@@ -3598,7 +3899,7 @@ Project Team`;
         [
           { text: "Cancel", style: "cancel" },
           { text: "Delete", style: "destructive", onPress: performDelete },
-        ]
+        ],
       );
     }
   };
@@ -3619,7 +3920,7 @@ Project Team`;
         budget: newBudget,
         serialNumber: currentPhase.order_num, // Send current serial number
         floorNumber: currentPhase.floor_number, // Send current floor number to preserve it
-        floorName: currentPhase.floor_name // Send current floor name
+        floorName: currentPhase.floor_name, // Send current floor name
       });
 
       showToast("Budget updated successfully", "success");
@@ -3674,7 +3975,7 @@ Project Team`;
     if (Platform.OS === "web") {
       if (
         (window as any).confirm(
-          "Are you sure you want to delete this task? This action cannot be undone."
+          "Are you sure you want to delete this task? This action cannot be undone.",
         )
       ) {
         handleDelete();
@@ -3693,7 +3994,7 @@ Project Team`;
             style: "destructive",
             onPress: handleDelete,
           },
-        ]
+        ],
       );
     }
   };
@@ -3737,7 +4038,7 @@ Project Team`;
 
     const openDatePicker = (
       field: "start_date" | "due_date",
-      title: string
+      title: string,
     ) => {
       setDatePickerConfig({ visible: true, field, title });
     };
@@ -3746,17 +4047,17 @@ Project Team`;
       <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
         {/* Background Pattern */}
         <Image
-          source={require('../../assets/construction-bg.png')}
+          source={require("../../assets/construction-bg.png")}
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            width: '100%',
-            height: '100%',
+            width: "100%",
+            height: "100%",
             opacity: 0.05,
-            zIndex: -1
+            zIndex: -1,
           }}
           resizeMode="repeat"
         />
@@ -3819,8 +4120,8 @@ Project Team`;
                     styles.statusOption,
                     selectedTask.status === status && styles.statusOptionActive,
                     selectedTask.status === status &&
-                    status === "In Progress" &&
-                    styles.statusBtnProgress,
+                      status === "In Progress" &&
+                      styles.statusBtnProgress,
                     { flex: 1, alignItems: "center", paddingVertical: 12 },
                   ]}
                   onPress={() => setSelectedTask({ ...selectedTask, status })}
@@ -3829,7 +4130,7 @@ Project Team`;
                     style={[
                       styles.statusOptionText,
                       selectedTask.status === status &&
-                      styles.statusOptionTextActive,
+                        styles.statusOptionTextActive,
                     ]}
                   >
                     {status}
@@ -3878,7 +4179,7 @@ Project Team`;
                         setSelectedTask({
                           ...selectedTask,
                           assigneeIds: selectedTask.assigneeIds.filter(
-                            (aid: number) => aid !== id
+                            (aid: number) => aid !== id,
                           ),
                         });
                       }}
@@ -4017,7 +4318,7 @@ Project Team`;
                   .filter(
                     (e) =>
                       e.status === "Active" &&
-                      !selectedTask.assigneeIds?.includes(e.id)
+                      !selectedTask.assigneeIds?.includes(e.id),
                   )
                   .map((emp) => (
                     <TouchableOpacity
@@ -4068,18 +4369,18 @@ Project Team`;
                 {employees.filter(
                   (e) =>
                     e.status === "Active" &&
-                    !selectedTask.assigneeIds?.includes(e.id)
+                    !selectedTask.assigneeIds?.includes(e.id),
                 ).length === 0 && (
-                    <Text
-                      style={{
-                        textAlign: "center",
-                        color: "#6b7280",
-                        padding: 20,
-                      }}
-                    >
-                      No more employees to assign
-                    </Text>
-                  )}
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: "#6b7280",
+                      padding: 20,
+                    }}
+                  >
+                    No more employees to assign
+                  </Text>
+                )}
               </ScrollView>
               <TouchableOpacity
                 style={{
@@ -4103,20 +4404,25 @@ Project Team`;
   };
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0 },
+      ]}
+    >
       {/* Background Pattern */}
       <Image
-        source={require('../../assets/construction-bg.png')}
+        source={require("../../assets/construction-bg.png")}
         style={{
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          width: '100%',
-          height: '100%',
+          width: "100%",
+          height: "100%",
           opacity: 0.05,
-          zIndex: -1
+          zIndex: -1,
         }}
         resizeMode="repeat"
       />
@@ -4190,7 +4496,7 @@ Project Team`;
             top: 60,
             right: 20,
 
-            width: '85%',
+            width: "85%",
             maxWidth: 300,
             backgroundColor: "#fff",
             borderRadius: 12,
@@ -4372,7 +4678,7 @@ Project Team`;
                             day: "1D",
                             week: "1W",
                             month: "1M",
-                            year: "1Y"
+                            year: "1Y",
                           };
                           return (
                             <TouchableOpacity
@@ -4410,7 +4716,7 @@ Project Team`;
                                 {labelMap[f]}
                               </Text>
                             </TouchableOpacity>
-                          )
+                          );
                         })}
                       </View>
                     </View>
@@ -4423,17 +4729,49 @@ Project Team`;
                 {/* 3. THIRD ROW: Overall Report */}
                 <View style={styles.metricsRow}>
                   <TouchableOpacity
-                    style={[styles.metricCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD', borderWidth: 1 }]}
+                    style={[
+                      styles.metricCard,
+                      {
+                        backgroundColor: "#F0F9FF",
+                        borderColor: "#BAE6FD",
+                        borderWidth: 1,
+                      },
+                    ]}
                     onPress={() => navigation.navigate("OverallReport")}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <View style={{ padding: 8, backgroundColor: '#fff', borderRadius: 8 }}>
-                        <Ionicons name="bar-chart-outline" size={24} color="#0284C7" />
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <View
+                        style={{
+                          padding: 8,
+                          backgroundColor: "#fff",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <Ionicons
+                          name="bar-chart-outline"
+                          size={24}
+                          color="#0284C7"
+                        />
                       </View>
-                      <Text style={[styles.metricLabel, { marginBottom: 0, color: '#0369A1' }]}>Overall Report</Text>
+                      <Text
+                        style={[
+                          styles.metricLabel,
+                          { marginBottom: 0, color: "#0369A1" },
+                        ]}
+                      >
+                        Overall Report
+                      </Text>
                     </View>
-                    <Text style={[styles.metricSubText, { color: '#0C4A6E' }]}>
-                      View comprehensive company status, financials, and project summaries.
+                    <Text style={[styles.metricSubText, { color: "#0C4A6E" }]}>
+                      View comprehensive company status, financials, and project
+                      summaries.
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -4516,7 +4854,7 @@ Project Team`;
                   .filter((s) =>
                     s.name
                       .toLowerCase()
-                      .includes(dashboardSearchQuery.toLowerCase())
+                      .includes(dashboardSearchQuery.toLowerCase()),
                   )
                   .map((item) => (
                     <TouchableOpacity
@@ -4537,7 +4875,7 @@ Project Team`;
 
                       {/* Notification Badge */}
                       {item.pending_approvals_count &&
-                        item.pending_approvals_count > 0 ? (
+                      item.pending_approvals_count > 0 ? (
                         <View
                           style={{
                             backgroundColor: "#EF4444",
@@ -4589,12 +4927,22 @@ Project Team`;
                   marginBottom: 20,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
                   <TouchableOpacity onPress={() => setActiveTab("Dashboard")}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                   </TouchableOpacity>
                   <Text
-                    style={{ fontSize: 24, fontWeight: "700", color: "#111827" }}
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "700",
+                      color: "#111827",
+                    }}
                   >
                     Workers
                   </Text>
@@ -4649,8 +4997,6 @@ Project Team`;
           ))}
       </View>
 
-
-
       {/* Project Details Modal */}
       <Modal
         visible={projectModalVisible}
@@ -4682,7 +5028,7 @@ Project Team`;
               let displayName = tab;
               if (tab === "Materials") {
                 const pendingCount = projectMaterials.filter(
-                  (m: any) => m.status === "Pending"
+                  (m: any) => m.status === "Pending",
                 ).length;
                 if (pendingCount > 0) {
                   displayName = `Materials (${pendingCount})`;
@@ -4723,9 +5069,7 @@ Project Team`;
             {activeProjectTab === "Tasks" && (
               <View style={styles.tabContentContainer}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.tabSectionTitle}>
-                    Milestones
-                  </Text>
+                  <Text style={styles.tabSectionTitle}>Milestones</Text>
                 </View>
 
                 <MilestoneList
@@ -4750,10 +5094,19 @@ Project Team`;
                   <TouchableOpacity
                     style={styles.addButtonSmall}
                     onPress={() => {
+                      // Close any other modals first to ensure single modal state
+                      setPhaseModalVisible(false);
+                      setEditPhaseModalVisible(false);
+                      setStageOptionsVisible(false);
+                      setAddTaskModalVisible(false);
+                      setTaskModalVisible(false);
                       // Auto-calculate next serial number
-                      const maxSerial = projectPhases.length > 0
-                        ? Math.max(...projectPhases.map(p => p.serial_number || 0))
-                        : 0;
+                      const maxSerial =
+                        projectPhases.length > 0
+                          ? Math.max(
+                              ...projectPhases.map((p) => p.serial_number || 0),
+                            )
+                          : 0;
                       setNewStageSerialNumber(String(maxSerial + 1));
                       setAddStageModalVisible(true);
                     }}
@@ -4773,9 +5126,13 @@ Project Team`;
                   <View>
                     {availableFloors.map((floorName) => {
                       const floorPhases = projectPhases.filter((p) => {
-                        const pFloor = p.floor_name || p.floor || "Ground Floor";
+                        const pFloor =
+                          p.floor_name || p.floor || "Ground Floor";
                         if (floorName === "Other")
-                          return pFloor === "Other" || !availableFloors.includes(pFloor);
+                          return (
+                            pFloor === "Other" ||
+                            !availableFloors.includes(pFloor)
+                          );
                         return pFloor === floorName;
                       });
 
@@ -4783,47 +5140,67 @@ Project Team`;
 
                       return (
                         <View key={floorName} style={{ marginBottom: 24 }}>
-                          <View style={{
-                            paddingVertical: 10,
-                            paddingHorizontal: 16,
-                            backgroundColor: '#054fa3ff', // Dark Blue
-                            borderRadius: 8,
-                            marginBottom: 12,
-                          }}>
-                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' }}>
+                          <View
+                            style={{
+                              paddingVertical: 10,
+                              paddingHorizontal: 16,
+                              backgroundColor: "#054fa3ff", // Dark Blue
+                              borderRadius: 8,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "800",
+                                color: "#FFFFFF",
+                                textTransform: "uppercase",
+                              }}
+                            >
                               {floorName}
                             </Text>
                           </View>
 
                           {floorPhases.map((phase, index) => {
                             const tasksInPhase = projectTasks.filter(
-                              (t) => t.phase_id === phase.id
+                              (t) => t.phase_id === phase.id,
                             );
-                            const isExpanded = expandedPhaseIds.includes(phase.id);
+                            const isExpanded = expandedPhaseIds.includes(
+                              phase.id,
+                            );
                             const completedTasks = tasksInPhase.filter(
                               (t) =>
-                                t.status === "Completed" || t.status === "completed"
+                                t.status === "Completed" ||
+                                t.status === "completed",
                             ).length;
                             const totalTasks = tasksInPhase.length;
                             const progress =
                               totalTasks > 0
-                                ? Math.round((completedTasks / totalTasks) * 100)
+                                ? Math.round(
+                                    (completedTasks / totalTasks) * 100,
+                                  )
                                 : 0;
 
                             return (
-                              <View key={phase.id} style={[styles.phaseContainer, {
-                                backgroundColor: '#E0F2FE', // Sky-100
-                                borderColor: '#7DD3FC', // Sky-300
-                                borderWidth: 1,
-                                borderRadius: 12,
-                                marginBottom: 16,
-                                shadowColor: "#38BDF8",
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.05,
-                                shadowRadius: 6,
-                                elevation: 3,
-                                overflow: 'hidden'
-                              }]}>
+                              <View
+                                key={phase.id}
+                                style={[
+                                  styles.phaseContainer,
+                                  {
+                                    backgroundColor: "#E0F2FE", // Sky-100
+                                    borderColor: "#7DD3FC", // Sky-300
+                                    borderWidth: 1,
+                                    borderRadius: 12,
+                                    marginBottom: 16,
+                                    shadowColor: "#38BDF8",
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.05,
+                                    shadowRadius: 6,
+                                    elevation: 3,
+                                    overflow: "hidden",
+                                  },
+                                ]}
+                              >
                                 <TouchableOpacity
                                   style={[
                                     {
@@ -4831,9 +5208,9 @@ Project Team`;
                                       alignItems: "flex-start", // Important for multiline
                                       justifyContent: "space-between",
                                       padding: 16,
-                                      backgroundColor: '#E0F2FE', // Sky-100
+                                      backgroundColor: "#E0F2FE", // Sky-100
                                       borderLeftWidth: isExpanded ? 4 : 4,
-                                      borderLeftColor: '#38BDF8', // Sky-400
+                                      borderLeftColor: "#38BDF8", // Sky-400
                                     },
                                     isMobile && {
                                       flexDirection: "column",
@@ -4855,31 +5232,37 @@ Project Team`;
                                       flex: isMobile ? 0 : 1,
                                     }}
                                   >
-                                    <View style={{
-                                      width: 32,
-                                      height: 32,
-                                      borderRadius: 16,
-                                      backgroundColor: '#FFFFFF',
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      marginTop: 2,
-                                    }}>
-                                      <Text style={{
-                                        fontSize: 14,
-                                        fontWeight: "700",
-                                        color: '#38BDF8',
-                                      }}>
+                                    <View
+                                      style={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 16,
+                                        backgroundColor: "#FFFFFF",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          fontSize: 14,
+                                          fontWeight: "700",
+                                          color: "#38BDF8",
+                                        }}
+                                      >
                                         {index + 1}
                                       </Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                      <Text style={{
-                                        fontSize: 15,
-                                        fontWeight: "700",
-                                        color: '#0F172A',
-                                        marginBottom: 10,
-                                        lineHeight: 24, // Increased line height
-                                      }}>
+                                      <Text
+                                        style={{
+                                          fontSize: 15,
+                                          fontWeight: "700",
+                                          color: "#0F172A",
+                                          marginBottom: 10,
+                                          lineHeight: 24, // Increased line height
+                                        }}
+                                      >
                                         {phase.name}
                                       </Text>
                                       <View
@@ -4889,13 +5272,23 @@ Project Team`;
                                           gap: 8,
                                         }}
                                       >
-                                        <Text style={{
-                                          fontSize: 12,
-                                          color: "#64748B",
-                                          fontWeight: "500",
-                                        }}>
-                                          {completedTasks}/{totalTasks} Completed ·{" "}
-                                          <Text style={{ color: "#38BDF8", fontWeight: '700' }}>{progress}%</Text>
+                                        <Text
+                                          style={{
+                                            fontSize: 12,
+                                            color: "#64748B",
+                                            fontWeight: "500",
+                                          }}
+                                        >
+                                          {completedTasks}/{totalTasks}{" "}
+                                          Completed ·
+                                          <Text
+                                            style={{
+                                              color: "#38BDF8",
+                                              fontWeight: "700",
+                                            }}
+                                          >
+                                            {progress}%
+                                          </Text>
                                         </Text>
                                         <View
                                           style={{
@@ -4911,34 +5304,43 @@ Project Team`;
                                             gap: 4,
                                           }}
                                         >
-                                          <Text style={{
-                                            fontSize: 12,
-                                            color: "#64748B",
-                                            fontWeight: "500",
-                                          }}>
+                                          <Text
+                                            style={{
+                                              fontSize: 12,
+                                              color: "#64748B",
+                                              fontWeight: "500",
+                                            }}
+                                          >
                                             ₹
-                                            {(phase.used_amount || 0).toLocaleString(
-                                              "en-IN"
-                                            )}{" "}
+                                            {(
+                                              phase.used_amount || 0
+                                            ).toLocaleString("en-IN")}{" "}
                                             / ₹
                                             {(phase.budget || 0).toLocaleString(
-                                              "en-IN"
+                                              "en-IN",
                                             )}
                                           </Text>
                                           {user?.role === "admin" && (
                                             <TouchableOpacity
-                                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                              hitSlop={{
+                                                top: 10,
+                                                bottom: 10,
+                                                left: 10,
+                                                right: 10,
+                                              }}
                                               onPress={(e) => {
                                                 e.stopPropagation();
                                                 setEditingPhaseId(phase.id);
-                                                setEditingPhaseBudget(String(phase.budget || 0));
+                                                setEditingPhaseBudget(
+                                                  String(phase.budget || 0),
+                                                );
                                                 setEditBudgetModalVisible(true);
                                               }}
                                               style={{
-                                                backgroundColor: '#FFFFFF',
+                                                backgroundColor: "#FFFFFF",
                                                 padding: 4,
                                                 borderRadius: 4,
-                                                marginLeft: 4
+                                                marginLeft: 4,
                                               }}
                                             >
                                               <Ionicons
@@ -4968,13 +5370,19 @@ Project Team`;
                                     }}
                                   >
                                     <TouchableOpacity
-                                      style={[styles.iconButton, { backgroundColor: '#FFFFFF', borderRadius: 8 }]}
+                                      style={[
+                                        styles.iconButton,
+                                        {
+                                          backgroundColor: "#FFFFFF",
+                                          borderRadius: 8,
+                                        },
+                                      ]}
                                       onPress={() => {
                                         setSelectedStageOption({
                                           id: phase.id,
                                           name: phase.name,
                                           floor: floorName,
-                                          serial_number: phase.serial_number
+                                          serial_number: phase.serial_number,
                                         });
                                         setStageOptionsVisible(true);
                                       }}
@@ -4985,11 +5393,22 @@ Project Team`;
                                         color="#64748B"
                                       />
                                     </TouchableOpacity>
-                                    <View style={[styles.iconButton, {
-                                      backgroundColor: '#FFFFFF',
-                                      borderRadius: 8,
-                                      transform: [{ rotate: isExpanded ? '180deg' : '0deg' }]
-                                    }]}>
+                                    <View
+                                      style={[
+                                        styles.iconButton,
+                                        {
+                                          backgroundColor: "#FFFFFF",
+                                          borderRadius: 8,
+                                          transform: [
+                                            {
+                                              rotate: isExpanded
+                                                ? "180deg"
+                                                : "0deg",
+                                            },
+                                          ],
+                                        },
+                                      ]}
+                                    >
                                       <Ionicons
                                         name="chevron-down"
                                         size={20}
@@ -4997,259 +5416,290 @@ Project Team`;
                                       />
                                     </View>
                                   </View>
-
                                 </TouchableOpacity>
 
-                                {
-                                  isExpanded && (
-                                    <View style={styles.taskList}>
-                                      {tasksInPhase.length > 0 ? (
-                                        <View>
-                                          {tasksInPhase.map((task) => {
-                                            const isCompleted =
-                                              task.status === "Completed" ||
-                                              task.status === "completed";
-                                            return (
+                                {isExpanded && (
+                                  <View style={styles.taskList}>
+                                    {tasksInPhase.length > 0 ? (
+                                      <View>
+                                        {tasksInPhase.map((task) => {
+                                          const isCompleted =
+                                            task.status === "Completed" ||
+                                            task.status === "completed";
+                                          return (
+                                            <View
+                                              key={task.id}
+                                              style={[
+                                                styles.taskItem,
+                                                isCompleted &&
+                                                  styles.taskItemCompleted,
+                                                isMobile && {
+                                                  flexDirection: "column",
+                                                  alignItems: "stretch",
+                                                  gap: 12,
+                                                },
+                                              ]}
+                                            >
                                               <View
-                                                key={task.id}
-                                                style={[
-                                                  styles.taskItem,
-                                                  isCompleted && styles.taskItemCompleted,
-                                                  isMobile && {
-                                                    flexDirection: "column",
-                                                    alignItems: "stretch",
-                                                    gap: 12,
-                                                  },
-                                                ]}
+                                                style={{
+                                                  flexDirection: "row",
+                                                  alignItems: "center",
+                                                  gap: 12,
+                                                  width: isMobile
+                                                    ? "100%"
+                                                    : "auto",
+                                                  flex: isMobile ? 0 : 1,
+                                                  minWidth: 200,
+                                                }}
                                               >
-                                                <View
-                                                  style={{
-                                                    flexDirection: "row",
-                                                    alignItems: "center",
-                                                    gap: 12,
-                                                    width: isMobile ? "100%" : "auto",
-                                                    flex: isMobile ? 0 : 1,
-                                                    minWidth: 200,
-                                                  }}
-                                                >
-                                                  <TouchableOpacity
-                                                    style={[
-                                                      styles.radioButton,
-                                                      isCompleted &&
+                                                <TouchableOpacity
+                                                  style={[
+                                                    styles.radioButton,
+                                                    isCompleted &&
                                                       styles.radioButtonSelected,
-                                                    ]}
-                                                  >
-                                                    {isCompleted && (
-                                                      <Ionicons
-                                                        name="checkmark"
-                                                        size={12}
-                                                        color="#fff"
-                                                      />
-                                                    )}
-                                                  </TouchableOpacity>
-                                                  <TouchableOpacity
-                                                    style={{ flex: 1 }}
-                                                    onPress={() => {
-                                                      // Open Stage Progress / Chat View via Modal (to overlay over Project Modal)
-                                                      setChatPhaseId(phase.id);
-                                                      setChatTaskId(task.id);
-                                                      setChatSiteName(
-                                                        selectedSite?.name || "Site"
-                                                      );
-                                                    }}
-                                                  >
-                                                    {(task.status ===
-                                                      "waiting_for_approval" ||
-                                                      task.status ===
-                                                      "Waiting Approval") && (
-                                                        <View
-                                                          style={{
-                                                            backgroundColor: "#FEF9C3",
-                                                            alignSelf: "flex-start",
-                                                            paddingHorizontal: 8,
-                                                            paddingVertical: 2,
-                                                            borderRadius: 4,
-                                                            marginBottom: 4,
-                                                            borderWidth: 1,
-                                                            borderColor: "#FDE047",
-                                                          }}
-                                                        >
-                                                          <Text
-                                                            style={{
-                                                              color: "#854D0E",
-                                                              fontSize: 10,
-                                                              fontWeight: "bold",
-                                                            }}
-                                                          >
-                                                            🟡 Completed – Approval Pending
-                                                          </Text>
-                                                        </View>
-                                                      )}
-                                                    <Text style={styles.taskTitle}>
-                                                      {task.name}
-                                                    </Text>
-                                                    <Text style={styles.taskSubtitle}>
-                                                      {task.status}
-                                                    </Text>
-                                                  </TouchableOpacity>
-                                                </View>
-
-                                                <View
-                                                  style={{
-                                                    flexDirection: "row",
-                                                    alignItems: "center",
-                                                    gap: 8,
-                                                    justifyContent: isMobile
-                                                      ? "space-between"
-                                                      : "flex-end",
-                                                    width: isMobile ? "100%" : "auto",
+                                                  ]}
+                                                >
+                                                  {isCompleted && (
+                                                    <Ionicons
+                                                      name="checkmark"
+                                                      size={12}
+                                                      color="#fff"
+                                                    />
+                                                  )}
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                  style={{ flex: 1 }}
+                                                  onPress={() => {
+                                                    // Open Stage Progress / Chat View via Modal (to overlay over Project Modal)
+                                                    setChatPhaseId(phase.id);
+                                                    setChatTaskId(task.id);
+                                                    setChatSiteName(
+                                                      selectedSite?.name ||
+                                                        "Site",
+                                                    );
                                                   }}
                                                 >
-                                                  {user?.role === "admin" && (
+                                                  {(task.status ===
+                                                    "waiting_for_approval" ||
+                                                    task.status ===
+                                                      "Waiting Approval") && (
                                                     <View
                                                       style={{
-                                                        flexDirection: "row",
-                                                        alignItems: "center",
-                                                        justifyContent: "flex-end",
-                                                        gap: 6,
+                                                        backgroundColor:
+                                                          "#FEF9C3",
+                                                        alignSelf: "flex-start",
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 2,
+                                                        borderRadius: 4,
+                                                        marginBottom: 4,
+                                                        borderWidth: 1,
+                                                        borderColor: "#FDE047",
                                                       }}
                                                     >
-                                                      {task.assignments &&
-                                                        task.assignments.length > 0 ? (
-                                                        <>
-                                                          <View
-                                                            style={{
-                                                              flexDirection: "row",
-                                                              gap: 6,
-                                                              flexWrap: "wrap",
-                                                              justifyContent: "flex-end",
-                                                            }}
-                                                          >
-                                                            {task.assignments.map(
-                                                              (assignment: any) => (
-                                                                <View
-                                                                  key={assignment.id}
+                                                      <Text
+                                                        style={{
+                                                          color: "#854D0E",
+                                                          fontSize: 10,
+                                                          fontWeight: "bold",
+                                                        }}
+                                                      >
+                                                        🟡 Completed – Approval
+                                                        Pending
+                                                      </Text>
+                                                    </View>
+                                                  )}
+                                                  <Text
+                                                    style={styles.taskTitle}
+                                                  >
+                                                    {task.name}
+                                                  </Text>
+                                                  <Text
+                                                    style={styles.taskSubtitle}
+                                                  >
+                                                    {task.status}
+                                                  </Text>
+                                                </TouchableOpacity>
+                                              </View>
+
+                                              <View
+                                                style={{
+                                                  flexDirection: "row",
+                                                  alignItems: "center",
+                                                  gap: 8,
+                                                  justifyContent: isMobile
+                                                    ? "space-between"
+                                                    : "flex-end",
+                                                  width: isMobile
+                                                    ? "100%"
+                                                    : "auto",
+                                                }}
+                                              >
+                                                {user?.role === "admin" && (
+                                                  <View
+                                                    style={{
+                                                      flexDirection: "row",
+                                                      alignItems: "center",
+                                                      justifyContent:
+                                                        "flex-end",
+                                                      gap: 6,
+                                                    }}
+                                                  >
+                                                    {task.assignments &&
+                                                    task.assignments.length >
+                                                      0 ? (
+                                                      <>
+                                                        <View
+                                                          style={{
+                                                            flexDirection:
+                                                              "row",
+                                                            gap: 6,
+                                                            flexWrap: "wrap",
+                                                            justifyContent:
+                                                              "flex-end",
+                                                          }}
+                                                        >
+                                                          {task.assignments.map(
+                                                            (
+                                                              assignment: any,
+                                                            ) => (
+                                                              <View
+                                                                key={
+                                                                  assignment.id
+                                                                }
+                                                                style={
+                                                                  styles.employeeNameBadge
+                                                                }
+                                                              >
+                                                                <Text
+                                                                  style={{
+                                                                    fontSize: 10,
+                                                                  }}
+                                                                >
+                                                                  👷
+                                                                </Text>
+                                                                <Text
                                                                   style={
-                                                                    styles.employeeNameBadge
+                                                                    styles.employeeNameText
                                                                   }
                                                                 >
-                                                                  <Text
-                                                                    style={{ fontSize: 10 }}
-                                                                  >
-                                                                    👷
-                                                                  </Text>
-                                                                  <Text
-                                                                    style={
-                                                                      styles.employeeNameText
-                                                                    }
-                                                                  >
-                                                                    {assignment.name
-                                                                      ? assignment.name.split(
-                                                                        " "
+                                                                  {assignment.name
+                                                                    ? assignment.name.split(
+                                                                        " ",
                                                                       )[0]
-                                                                      : "Unknown"}
-                                                                  </Text>
-                                                                </View>
-                                                              )
-                                                            )}
-                                                            {task.due_date && (
-                                                              <View
+                                                                    : "Unknown"}
+                                                                </Text>
+                                                              </View>
+                                                            ),
+                                                          )}
+                                                          {task.due_date && (
+                                                            <View
+                                                              style={[
+                                                                styles.employeeNameBadge,
+                                                                {
+                                                                  backgroundColor:
+                                                                    "#F3F4F6",
+                                                                  borderColor:
+                                                                    "#D1D5DB",
+                                                                },
+                                                              ]}
+                                                            >
+                                                              <Text
+                                                                style={{
+                                                                  fontSize: 10,
+                                                                }}
+                                                              >
+                                                                📅
+                                                              </Text>
+                                                              <Text
                                                                 style={[
-                                                                  styles.employeeNameBadge,
+                                                                  styles.employeeNameText,
                                                                   {
-                                                                    backgroundColor:
-                                                                      "#F3F4F6",
-                                                                    borderColor: "#D1D5DB",
+                                                                    color:
+                                                                      "#374151",
                                                                   },
                                                                 ]}
                                                               >
-                                                                <Text
-                                                                  style={{ fontSize: 10 }}
-                                                                >
-                                                                  📅
-                                                                </Text>
-                                                                <Text
-                                                                  style={[
-                                                                    styles.employeeNameText,
-                                                                    { color: "#374151" },
-                                                                  ]}
-                                                                >
-                                                                  Due:{" "}
-                                                                  {new Date(
-                                                                    task.due_date
-                                                                  ).toLocaleDateString(
-                                                                    "en-GB",
-                                                                    {
-                                                                      day: "2-digit",
-                                                                      month: "short",
-                                                                      year: "numeric",
-                                                                    }
-                                                                  )}
-                                                                </Text>
-                                                              </View>
-                                                            )}
-                                                          </View>
-                                                        </>
-                                                      ) : null}
+                                                                Due:{" "}
+                                                                {new Date(
+                                                                  task.due_date,
+                                                                ).toLocaleDateString(
+                                                                  "en-GB",
+                                                                  {
+                                                                    day: "2-digit",
+                                                                    month:
+                                                                      "short",
+                                                                    year: "numeric",
+                                                                  },
+                                                                )}
+                                                              </Text>
+                                                            </View>
+                                                          )}
+                                                        </View>
+                                                      </>
+                                                    ) : null}
 
-                                                      <TouchableOpacity
-                                                        style={styles.addAssigneeBtn}
-                                                        onPress={() =>
-                                                          handleAssignTask(task, phase)
-                                                        }
-                                                      >
-                                                        <Ionicons
-                                                          name="pencil"
-                                                          size={16}
-                                                          color="#374151"
-                                                        />
-                                                      </TouchableOpacity>
-                                                    </View>
-                                                  )}
+                                                    <TouchableOpacity
+                                                      style={
+                                                        styles.addAssigneeBtn
+                                                      }
+                                                      onPress={() =>
+                                                        handleAssignTask(
+                                                          task,
+                                                          phase,
+                                                        )
+                                                      }
+                                                    >
+                                                      <Ionicons
+                                                        name="pencil"
+                                                        size={16}
+                                                        color="#374151"
+                                                      />
+                                                    </TouchableOpacity>
+                                                  </View>
+                                                )}
 
-                                                  <TouchableOpacity
-                                                    style={styles.iconButton}
-                                                    onPress={() =>
-                                                      handleDeleteTaskPress(task)
-                                                    }
-                                                  >
-                                                    <Ionicons
-                                                      name="trash-outline"
-                                                      size={16}
-                                                      color="#ef4444"
-                                                    />
-                                                  </TouchableOpacity>
-                                                </View>
+                                                <TouchableOpacity
+                                                  style={styles.iconButton}
+                                                  onPress={() =>
+                                                    handleDeleteTaskPress(task)
+                                                  }
+                                                >
+                                                  <Ionicons
+                                                    name="trash-outline"
+                                                    size={16}
+                                                    color="#ef4444"
+                                                  />
+                                                </TouchableOpacity>
                                               </View>
-                                            );
-                                          })}
-                                        </View>
-                                      ) : (
-                                        <Text style={styles.noTasksText}>
-                                          No tasks in this stage
-                                        </Text>
-                                      )}
+                                            </View>
+                                          );
+                                        })}
+                                      </View>
+                                    ) : (
+                                      <Text style={styles.noTasksText}>
+                                        No tasks in this stage
+                                      </Text>
+                                    )}
 
-                                      <TouchableOpacity
-                                        style={styles.addTaskBtn}
-                                        onPress={() => {
-                                          setActivePhaseId(phase.id);
-                                          setNewTaskName("");
-                                          setAddTaskModalVisible(true);
-                                        }}
-                                      >
-                                        <Ionicons
-                                          name="add-circle-outline"
-                                          size={20}
-                                          color="#8B0000"
-                                        />
-                                        <Text style={styles.addTaskTextSmall}>
-                                          Add Subtask to this Stage
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </View>
-                                  )
-                                }
+                                    <TouchableOpacity
+                                      style={styles.addTaskBtn}
+                                      onPress={() => {
+                                        setActivePhaseId(phase.id);
+                                        setNewTaskName("");
+                                        setAddTaskModalVisible(true);
+                                      }}
+                                    >
+                                      <Ionicons
+                                        name="add-circle-outline"
+                                        size={20}
+                                        color="#8B0000"
+                                      />
+                                      <Text style={styles.addTaskTextSmall}>
+                                        Add Subtask to this Stage
+                                      </Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
                               </View>
                             );
                           })}
@@ -5259,8 +5709,7 @@ Project Team`;
                   </View>
                 )}
               </View>
-            )
-            }
+            )}
 
             {activeProjectTab === "Transactions" && selectedSite && (
               <ProjectTransactions
@@ -5415,7 +5864,7 @@ Project Team`;
                                     }));
                                     await handleUpdateMaterialStatus(
                                       item.id,
-                                      "Approved"
+                                      "Approved",
                                     );
                                     if (selectedSite?.id)
                                       fetchProjectMaterials(selectedSite.id);
@@ -5452,7 +5901,7 @@ Project Team`;
                                     }));
                                     await handleUpdateMaterialStatus(
                                       item.id,
-                                      "Rejected"
+                                      "Rejected",
                                     );
                                     if (selectedSite?.id)
                                       fetchProjectMaterials(selectedSite.id);
@@ -5626,17 +6075,17 @@ Project Team`;
                                   style={{
                                     width:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? "100%"
                                         : "31%",
                                     aspectRatio:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? undefined
                                         : 1,
                                     height:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? 60
                                         : undefined,
                                     backgroundColor: "#f9fafb",
@@ -5646,13 +6095,13 @@ Project Team`;
                                     overflow: "hidden",
                                     flexDirection:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? "row"
                                         : "column",
                                     alignItems: "center",
                                     padding:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? 10
                                         : 0,
                                   }}
@@ -5672,12 +6121,12 @@ Project Team`;
                                       style={{
                                         width:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 40
                                             : "100%",
                                         height:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 40
                                             : "70%",
                                         alignItems: "center",
@@ -5688,7 +6137,7 @@ Project Team`;
                                             : "#f3f4f6",
                                         borderRadius:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 20
                                             : 0,
                                       }}
@@ -5703,7 +6152,7 @@ Project Team`;
                                         }
                                         size={
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 20
                                             : 32
                                         }
@@ -5721,12 +6170,12 @@ Project Team`;
                                     style={{
                                       padding:
                                         activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
+                                        activeFileTab === "Documents"
                                           ? 0
                                           : 4,
                                       marginLeft:
                                         activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
+                                        activeFileTab === "Documents"
                                           ? 10
                                           : 0,
                                       flex: 1,
@@ -5742,7 +6191,7 @@ Project Team`;
                                         color: "#111827",
                                         textAlign:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? "left"
                                             : "center",
                                       }}
@@ -5756,14 +6205,14 @@ Project Team`;
                                         color: "#6b7280",
                                         textAlign:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? "left"
                                             : "center",
                                       }}
                                     >
                                       {file.uploaded_by || "Unknown"} •{" "}
                                       {new Date(
-                                        file.created_at
+                                        file.created_at,
                                       ).toLocaleTimeString([], {
                                         hour: "2-digit",
                                         minute: "2-digit",
@@ -5773,13 +6222,13 @@ Project Team`;
 
                                   {(activeFileTab === "Voice" ||
                                     activeFileTab === "Documents") && (
-                                      <Ionicons
-                                        name="download-outline"
-                                        size={20}
-                                        color="#6b7280"
-                                        style={{ marginRight: 5 }}
-                                      />
-                                    )}
+                                    <Ionicons
+                                      name="download-outline"
+                                      size={20}
+                                      color="#6b7280"
+                                      style={{ marginRight: 5 }}
+                                    />
+                                  )}
                                 </TouchableOpacity>
                               ))}
                             </View>
@@ -5793,26 +6242,64 @@ Project Team`;
             )}
           </SafeScrollContainer>
         </SafeAreaView>
-      </Modal >
-
-
-
+      </Modal>
 
       {/* Edit Phase Modal */}
-      < Modal
+      <Modal
         visible={editPhaseModalVisible}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setEditPhaseModalVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 }}>Edit Construction Stage</Text>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 24,
+              width: "100%",
+              maxWidth: 400,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                color: "#111827",
+                marginBottom: 20,
+              }}
+            >
+              Edit Construction Stage
+            </Text>
 
             {/* Floor Selection */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {availableFloors.map(floor => (
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+              }}
+            >
+              Select Floor *
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 20,
+              }}
+            >
+              {availableFloors.map((floor) => (
                 <TouchableOpacity
                   key={floor}
                   onPress={() => setEditingPhaseFloor(floor)}
@@ -5820,12 +6307,22 @@ Project Team`;
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderRadius: 8,
-                    backgroundColor: editingPhaseFloor === floor ? '#8B0000' : '#F3F4F6',
+                    backgroundColor:
+                      editingPhaseFloor === floor ? "#8B0000" : "#F3F4F6",
                     borderWidth: 1,
-                    borderColor: editingPhaseFloor === floor ? '#8B0000' : '#E5E7EB'
+                    borderColor:
+                      editingPhaseFloor === floor ? "#8B0000" : "#E5E7EB",
                   }}
                 >
-                  <Text style={{ color: editingPhaseFloor === floor ? '#fff' : '#4B5563', fontSize: 13, fontWeight: '600' }}>{floor}</Text>
+                  <Text
+                    style={{
+                      color: editingPhaseFloor === floor ? "#fff" : "#4B5563",
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {floor}
+                  </Text>
                 </TouchableOpacity>
               ))}
 
@@ -5835,29 +6332,40 @@ Project Team`;
                   paddingHorizontal: 16,
                   paddingVertical: 10,
                   borderRadius: 8,
-                  backgroundColor: '#F3F4F6',
+                  backgroundColor: "#F3F4F6",
                   borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderStyle: 'dashed'
+                  borderColor: "#E5E7EB",
+                  borderStyle: "dashed",
                 }}
               >
-                <Text style={{ color: '#4B5563', fontSize: 13, fontWeight: '600' }}>+ More Floors</Text>
+                <Text
+                  style={{ color: "#4B5563", fontSize: 13, fontWeight: "600" }}
+                >
+                  + More Floors
+                </Text>
               </TouchableOpacity>
             </View>
 
             {/* Custom Floor Input */}
             {editCustomFloorInputVisible && (
-              <View style={{ marginBottom: 20, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <View
+                style={{
+                  marginBottom: 20,
+                  flexDirection: "row",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
                 <TextInput
                   style={{
                     borderWidth: 1,
-                    borderColor: '#D1D5DB',
+                    borderColor: "#D1D5DB",
                     borderRadius: 8,
                     padding: 10,
                     fontSize: 14,
-                    color: '#111827',
+                    color: "#111827",
                     flex: 1,
-                    height: 40
+                    height: 40,
                   }}
                   placeholder="Enter Floor No. (e.g. 3)"
                   keyboardType="numeric"
@@ -5867,24 +6375,43 @@ Project Team`;
                 />
                 <TouchableOpacity
                   onPress={handleEditAddCustomFloor}
-                  style={{ padding: 10, borderRadius: 8, backgroundColor: '#111827', height: 40, justifyContent: 'center' }}
+                  style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    backgroundColor: "#111827",
+                    height: 40,
+                    justifyContent: "center",
+                  }}
                 >
-                  <Text style={{ fontWeight: '600', color: '#fff', fontSize: 13 }}>Add</Text>
+                  <Text
+                    style={{ fontWeight: "600", color: "#fff", fontSize: 13 }}
+                  >
+                    Add
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Serial Number */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+              }}
+            >
+              Serial Number *
+            </Text>
             <TextInput
               style={{
                 borderWidth: 1,
-                borderColor: '#D1D5DB',
+                borderColor: "#D1D5DB",
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 14,
-                color: '#111827',
-                marginBottom: 20
+                color: "#111827",
+                marginBottom: 20,
               }}
               placeholder="Enter serial number (e.g. 1)"
               keyboardType="numeric"
@@ -5893,16 +6420,25 @@ Project Team`;
             />
 
             {/* Stage Name */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Stage Name *</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+              }}
+            >
+              Stage Name *
+            </Text>
             <TextInput
               style={{
                 borderWidth: 1,
-                borderColor: '#D1D5DB',
+                borderColor: "#D1D5DB",
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 14,
-                color: '#111827',
-                marginBottom: 24
+                color: "#111827",
+                marginBottom: 24,
               }}
               placeholder="Enter stage name (e.g. Roof Slab)"
               value={editingPhaseName}
@@ -5910,66 +6446,109 @@ Project Team`;
             />
 
             {/* Actions */}
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity
                 onPress={() => setEditPhaseModalVisible(false)}
-                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' }}
+                style={{
+                  flex: 1,
+                  padding: 14,
+                  borderRadius: 8,
+                  backgroundColor: "#F3F4F6",
+                  alignItems: "center",
+                }}
               >
-                <Text style={{ fontWeight: '600', color: '#374151' }}>Cancel</Text>
+                <Text style={{ fontWeight: "600", color: "#374151" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleUpdatePhase}
-                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#8B0000', alignItems: 'center' }}
+                style={{
+                  flex: 1,
+                  padding: 14,
+                  borderRadius: 8,
+                  backgroundColor: "#8B0000",
+                  alignItems: "center",
+                }}
               >
-                <Text style={{ fontWeight: '600', color: '#fff' }}>Update</Text>
+                <Text style={{ fontWeight: "600", color: "#fff" }}>Update</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </Modal >
+      </Modal>
 
       {/* Stage Options Menu Modal */}
-      < Modal
+      <Modal
         visible={stageOptionsVisible}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setStageOptionsVisible(false)}
       >
         <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
           activeOpacity={1}
           onPress={() => setStageOptionsVisible(false)}
         >
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 8, minWidth: 200 }} onStartShouldSetResponder={() => true}>
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 8,
+              minWidth: 200,
+            }}
+            onStartShouldSetResponder={() => true}
+          >
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+                gap: 12,
+              }}
               onPress={() => {
-                const phase = projectPhases.find(p => p.id === selectedStageOption?.id);
+                const phase = projectPhases.find(
+                  (p) => p.id === selectedStageOption?.id,
+                );
                 if (phase) handleEditStage(phase);
               }}
             >
               <Ionicons name="create-outline" size={20} color="#374151" />
-              <Text style={{ fontSize: 15, color: '#374151' }}>Edit Stage</Text>
+              <Text style={{ fontSize: 15, color: "#374151" }}>Edit Stage</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+                gap: 12,
+              }}
               onPress={() => {
                 if (selectedStageOption) {
-                  handleDeletePhase(selectedStageOption.id, selectedStageOption.name);
+                  handleDeletePhase(
+                    selectedStageOption.id,
+                    selectedStageOption.name,
+                  );
                 }
                 setStageOptionsVisible(false);
               }}
             >
               <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              <Text style={{ fontSize: 15, color: '#EF4444' }}>Delete Stage</Text>
+              <Text style={{ fontSize: 15, color: "#EF4444" }}>
+                Delete Stage
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </Modal >
-
+      </Modal>
 
       {/* Edit Budget Modal */}
-      < Modal
+      <Modal
         visible={editBudgetModalVisible}
         transparent={true}
         animationType="fade"
@@ -6012,10 +6591,10 @@ Project Team`;
             </TouchableOpacity>
           </View>
         </View>
-      </Modal >
+      </Modal>
 
       {/* Add Task Modal (Small) */}
-      < Modal
+      <Modal
         visible={addTaskModalVisible}
         transparent={true}
         animationType="fade"
@@ -6056,10 +6635,335 @@ Project Team`;
             </View>
           </View>
         </View>
-      </Modal >
+      </Modal>
+
+      {/* Add Stage Modal */}
+      <Modal
+        visible={addStageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAddStageModalVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.fullModalOverlay}
+          onPress={() => setAddStageModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.modalContent,
+              {
+                maxHeight: "90%",
+                margin: 20,
+                borderRadius: 16,
+                backgroundColor: "#fff",
+                width: "90%",
+                alignSelf: "center",
+                borderTopWidth: 4,
+                borderTopColor: "#3B82F6",
+                flexDirection: "column",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.modalHeader,
+                {
+                  borderBottomWidth: 2,
+                  borderBottomColor: "#3B82F6",
+                  backgroundColor: "#F0F9FF",
+                },
+              ]}
+            >
+              <Text style={[styles.modalTitle, { color: "#1E40AF" }]}>
+                Add New Construction Stage (Serial No.)
+              </Text>
+              <TouchableOpacity onPress={() => setAddStageModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#1E40AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ flex: 1, padding: 20 }}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* Serial Number Info */}
+              {newStageSerialNumber && (
+                <View
+                  style={{
+                    padding: 12,
+                    backgroundColor: "#e0f2fe",
+                    borderRadius: 8,
+                    marginBottom: 20,
+                    borderLeftWidth: 4,
+                    borderLeftColor: "#3B82F6",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: "#0369a1",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Serial Number:{" "}
+                    <Text style={{ fontSize: 14, fontWeight: "700" }}>
+                      {newStageSerialNumber}
+                    </Text>
+                  </Text>
+                </View>
+              )}
+
+              {/* Floor Selector */}
+              <Text style={styles.inputLabel}>Select Floor(s)</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
+                {AVAILABLE_FLOORS.map((floor) => (
+                  <TouchableOpacity
+                    key={floor}
+                    onPress={() => {
+                      if (newStageFloors.includes(floor)) {
+                        setNewStageFloors(
+                          newStageFloors.filter((f) => f !== floor),
+                        );
+                      } else {
+                        setNewStageFloors([...newStageFloors, floor]);
+                      }
+                    }}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      backgroundColor: newStageFloors.includes(floor)
+                        ? "#3B82F6"
+                        : "#fff",
+                      borderColor: newStageFloors.includes(floor)
+                        ? "#3B82F6"
+                        : "#e5e7eb",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontWeight: "600",
+                        fontSize: 13,
+                        color: newStageFloors.includes(floor)
+                          ? "#fff"
+                          : "#374151",
+                      }}
+                    >
+                      {floor}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Phase Selector */}
+              <Text style={styles.inputLabel}>Select Phase</Text>
+              <View style={{ marginBottom: 20, zIndex: 10 }}>
+                <TextInput
+                  style={[styles.searchInput, { marginBottom: 12 }]}
+                  placeholder="Search phases..."
+                  value={phaseSearchQuery}
+                  onChangeText={setPhaseSearchQuery}
+                  placeholderTextColor="#9ca3af"
+                />
+                {newStageFloors.length === 0 && (
+                  <View
+                    style={{
+                      padding: 16,
+                      backgroundColor: "#fef3c7",
+                      borderRadius: 8,
+                      borderLeftWidth: 4,
+                      borderLeftColor: "#f59e0b",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: "#92400e",
+                        fontWeight: "500",
+                      }}
+                    >
+                      💡 Select at least one floor to see recommended phases
+                    </Text>
+                  </View>
+                )}
+
+                {newStageFloors.length > 0 && (
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      borderRadius: 8,
+                      maxHeight: 200,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                      {MASTER_PHASES.filter((p) => {
+                        // Filter by search
+                        if (
+                          phaseSearchQuery &&
+                          !p.name
+                            .toLowerCase()
+                            .includes(phaseSearchQuery.toLowerCase())
+                        )
+                          return false;
+
+                        // Filter by floor relevance
+                        const isRelevant =
+                          p.floors.includes("All") ||
+                          p.floors.some((f) => newStageFloors.includes(f));
+                        return isRelevant;
+                      }).map((phase, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          style={{
+                            padding: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#f3f4f6",
+                            backgroundColor:
+                              newStagePhase?.name === phase.name
+                                ? "#dbeafe"
+                                : "#fff",
+                          }}
+                          onPress={() => setNewStagePhase(phase)}
+                        >
+                          <Text
+                            style={{
+                              fontWeight: "600",
+                              color:
+                                newStagePhase?.name === phase.name
+                                  ? "#1e40af"
+                                  : "#1f2937",
+                              fontSize: 13,
+                            }}
+                          >
+                            {phase.name}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#9ca3af",
+                              marginTop: 2,
+                            }}
+                          >
+                            {phase.category}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                      {MASTER_PHASES.filter((p) => {
+                        if (
+                          phaseSearchQuery &&
+                          !p.name
+                            .toLowerCase()
+                            .includes(phaseSearchQuery.toLowerCase())
+                        )
+                          return false;
+                        const isRelevant =
+                          p.floors.includes("All") ||
+                          p.floors.some((f) => newStageFloors.includes(f));
+                        return isRelevant;
+                      }).length === 0 && (
+                        <View style={{ padding: 20, alignItems: "center" }}>
+                          <Text style={{ fontSize: 12, color: "#9ca3af" }}>
+                            No phases available for selected floors
+                          </Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Selected Phase Summary */}
+              {newStagePhase && newStageFloors.length > 0 && (
+                <View
+                  style={{
+                    padding: 14,
+                    backgroundColor: "#f0fdf4",
+                    borderRadius: 8,
+                    borderLeftWidth: 4,
+                    borderLeftColor: "#10b981",
+                    marginBottom: 20,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#065f46",
+                      fontWeight: "700",
+                      fontSize: 13,
+                      marginBottom: 4,
+                    }}
+                  >
+                    ✓ Ready to Add
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#047857",
+                      fontWeight: "600",
+                      fontSize: 12,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {newStagePhase.name}
+                  </Text>
+                  <Text style={{ color: "#059669", fontSize: 11 }}>
+                    Floors: {newStageFloors.join(", ")}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Fixed Button at Bottom */}
+            <View
+              style={{
+                padding: 20,
+                borderTopWidth: 1,
+                borderTopColor: "#e5e7eb",
+                backgroundColor: "#fff",
+              }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  (!newStagePhase || newStageFloors.length === 0) && {
+                    opacity: 0.5,
+                    backgroundColor: "#cbd5e1",
+                  },
+                ]}
+                disabled={!newStagePhase || newStageFloors.length === 0}
+                onPress={handleSaveNewStage}
+              >
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    (!newStagePhase || newStageFloors.length === 0) && {
+                      color: "#64748b",
+                    },
+                  ]}
+                >
+                  {!newStagePhase || newStageFloors.length === 0
+                    ? "Select Floor & Phase to Continue"
+                    : "✓ Add Construction Stage"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Task Edit / Update Modal (Full) */}
-      < Modal
+      <Modal
         visible={taskModalVisible}
         transparent={true}
         animationType="slide"
@@ -6099,13 +7003,13 @@ Project Team`;
                           style={[
                             styles.statusOption,
                             selectedTask.status === status &&
-                            styles.statusOptionActive,
+                              styles.statusOptionActive,
                             selectedTask.status === status &&
-                            status === "Completed" &&
-                            styles.statusBtnCompleted,
+                              status === "Completed" &&
+                              styles.statusBtnCompleted,
                             selectedTask.status === status &&
-                            status === "In Progress" &&
-                            styles.statusBtnProgress,
+                              status === "In Progress" &&
+                              styles.statusBtnProgress,
                           ]}
                           onPress={() =>
                             setSelectedTask({ ...selectedTask, status })
@@ -6115,13 +7019,13 @@ Project Team`;
                             style={[
                               styles.statusOptionText,
                               selectedTask.status === status &&
-                              styles.statusOptionTextActive,
+                                styles.statusOptionTextActive,
                             ]}
                           >
                             {status}
                           </Text>
                         </TouchableOpacity>
-                      )
+                      ),
                     )}
                   </View>
 
@@ -6141,8 +7045,8 @@ Project Team`;
                         >
                           {selectedTask.employee_id
                             ? employees.find(
-                              (e) => e.id == selectedTask.employee_id
-                            )?.name || "Unknown"
+                                (e) => e.id == selectedTask.employee_id,
+                              )?.name || "Unknown"
                             : "Unassigned"}
                         </Text>
                         <Ionicons
@@ -6375,10 +7279,10 @@ Project Team`;
             </View>
           </TouchableOpacity>
         </Modal>
-      </Modal >
+      </Modal>
 
       {/* Bottom Navigation */}
-      < View style={styles.newBottomNav} >
+      <View style={styles.newBottomNav}>
         <TouchableOpacity
           style={styles.newNavItem}
           onPress={() => setActiveTab("Dashboard")}
@@ -6416,10 +7320,10 @@ Project Team`;
             Workers
           </Text>
         </TouchableOpacity>
-      </View >
+      </View>
 
       {/* Create Project Modal */}
-      < Modal
+      <Modal
         visible={createModalVisible}
         animationType="slide"
         transparent={false}
@@ -6616,10 +7520,10 @@ Project Team`;
             </View>
           </ScrollView>
         </SafeAreaView>
-      </Modal >
+      </Modal>
 
       {/* Custom Components Overlay (Moved to end for correct layering) */}
-      < CustomToast
+      <CustomToast
         visible={toast.visible}
         message={toast.message}
         type={toast.type}
@@ -6687,8 +7591,6 @@ Project Team`;
             <Text style={styles.settingsHeaderTitle}>
               Configuration Details
             </Text>
-
-
           </View>
 
           <View style={{ flex: 1, flexDirection: isMobile ? "column" : "row" }}>
@@ -6747,7 +7649,7 @@ Project Team`;
                       style={[
                         styles.settingsInput,
                         editingSection !== "projectInfo" &&
-                        styles.disabledInput,
+                          styles.disabledInput,
                       ]}
                       value={formData.name}
                       onChangeText={(t) => handleInputChange("name", t)}
@@ -6763,7 +7665,7 @@ Project Team`;
                       style={[
                         styles.settingsInput,
                         editingSection !== "projectInfo" &&
-                        styles.disabledInput,
+                          styles.disabledInput,
                       ]}
                       value={formData.address}
                       onChangeText={(t) => handleInputChange("address", t)}
@@ -6780,7 +7682,7 @@ Project Team`;
                         style={[
                           styles.settingsInputContainer,
                           editingSection !== "projectInfo" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         onPress={() =>
                           editingSection === "projectInfo" &&
@@ -6811,7 +7713,7 @@ Project Team`;
                         style={[
                           styles.settingsInputContainer,
                           editingSection !== "projectInfo" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         onPress={() =>
                           editingSection === "projectInfo" &&
@@ -6889,7 +7791,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientName}
                         onChangeText={(t) => handleInputChange("clientName", t)}
@@ -6904,7 +7806,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientPhone}
                         onChangeText={(t) =>
@@ -6922,7 +7824,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientEmail}
                         onChangeText={(t) =>
@@ -7100,10 +8002,10 @@ Project Team`;
                               (settingsPhases.reduce(
                                 (sum, p) =>
                                   sum + (parseFloat(String(p.budget)) || 0),
-                                0
+                                0,
                               ) /
                                 (parseFloat(formData.budget) || 1)) *
-                              100
+                                100,
                             ).toFixed(1)}
                             %
                           </Text>
@@ -7124,16 +8026,16 @@ Project Team`;
                                 (settingsPhases.reduce(
                                   (sum, p) =>
                                     sum + (parseFloat(String(p.budget)) || 0),
-                                  0
+                                  0,
                                 ) /
                                   (parseFloat(formData.budget) || 1)) *
-                                100
+                                  100,
                               )}%`,
                               backgroundColor:
                                 settingsPhases.reduce(
                                   (sum, p) =>
                                     sum + (parseFloat(String(p.budget)) || 0),
-                                  0
+                                  0,
                                 ) > (parseFloat(formData.budget) || 0)
                                   ? "#ef4444"
                                   : "#166534",
@@ -7178,7 +8080,7 @@ Project Team`;
                             .reduce(
                               (sum, p) =>
                                 sum + (parseFloat(String(p.budget)) || 0),
-                              0
+                              0,
                             )
                             .toLocaleString()}
                         </Text>
@@ -7190,7 +8092,7 @@ Project Team`;
                             settingsPhases.reduce(
                               (sum, p) =>
                                 sum + (parseFloat(String(p.budget)) || 0),
-                              0
+                              0,
                             ) > (parseFloat(formData.budget) || 0)
                               ? "#fef2f2"
                               : "#f0fdf4",
@@ -7201,7 +8103,7 @@ Project Team`;
                             settingsPhases.reduce(
                               (sum, p) =>
                                 sum + (parseFloat(String(p.budget)) || 0),
-                              0
+                              0,
                             ) > (parseFloat(formData.budget) || 0)
                               ? "#fecaca"
                               : "#bbf7d0",
@@ -7214,7 +8116,7 @@ Project Team`;
                               settingsPhases.reduce(
                                 (sum, p) =>
                                   sum + (parseFloat(String(p.budget)) || 0),
-                                0
+                                0,
                               ) > (parseFloat(formData.budget) || 0)
                                 ? "#b91c1c"
                                 : "#15803d",
@@ -7233,7 +8135,7 @@ Project Team`;
                               settingsPhases.reduce(
                                 (sum, p) =>
                                   sum + (parseFloat(String(p.budget)) || 0),
-                                0
+                                0,
                               ) > (parseFloat(formData.budget) || 0)
                                 ? "#ef4444"
                                 : "#166534",
@@ -7243,11 +8145,11 @@ Project Team`;
                           {Math.max(
                             0,
                             (parseFloat(formData.budget) || 0) -
-                            settingsPhases.reduce(
-                              (sum, p) =>
-                                sum + (parseFloat(String(p.budget)) || 0),
-                              0
-                            )
+                              settingsPhases.reduce(
+                                (sum, p) =>
+                                  sum + (parseFloat(String(p.budget)) || 0),
+                                0,
+                              ),
                           ).toLocaleString()}
                         </Text>
                       </View>
@@ -7255,33 +8157,33 @@ Project Team`;
 
                     {settingsPhases.reduce(
                       (sum, p) => sum + (parseFloat(String(p.budget)) || 0),
-                      0
+                      0,
                     ) > (parseFloat(formData.budget) || 0) && (
-                        <View
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 12,
+                          backgroundColor: "#fef2f2",
+                          padding: 8,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: "#fee2e2",
+                        }}
+                      >
+                        <Ionicons name="warning" size={16} color="#ef4444" />
+                        <Text
                           style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                            marginTop: 12,
-                            backgroundColor: "#fef2f2",
-                            padding: 8,
-                            borderRadius: 8,
-                            borderWidth: 1,
-                            borderColor: "#fee2e2",
+                            fontSize: 12,
+                            color: "#b91c1c",
+                            fontWeight: "600",
                           }}
                         >
-                          <Ionicons name="warning" size={16} color="#ef4444" />
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: "#b91c1c",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Warning: Allocation exceeds project limit
-                          </Text>
-                        </View>
-                      )}
+                          Warning: Allocation exceeds project limit
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={{ marginTop: 12 }}>
@@ -7402,8 +8304,8 @@ Project Team`;
                                     prev.map((p) =>
                                       p.id === phase.id
                                         ? { ...p, budget: val }
-                                        : p
-                                    )
+                                        : p,
+                                    ),
                                   )
                                 }
                                 keyboardType="numeric"
@@ -7455,7 +8357,7 @@ Project Team`;
                                 borderWidth: 1,
                                 borderColor: "#fee2e2",
                               }}
-                            // tooltip="Delete Stage" // React Native doesn't support native tooltips easily, relying on icon
+                              // tooltip="Delete Stage" // React Native doesn't support native tooltips easily, relying on icon
                             >
                               <Ionicons
                                 name="trash"
@@ -7469,7 +8371,6 @@ Project Team`;
                     ))}
                   </View>
                 </View>
-
 
                 {/* Delete Project Button */}
                 <TouchableOpacity
@@ -7488,12 +8389,20 @@ Project Team`;
                   }}
                   onPress={() => {
                     if (selectedSite) {
-                      setProjectToDelete({ id: selectedSite.id, name: selectedSite.name });
+                      setProjectToDelete({
+                        id: selectedSite.id,
+                        name: selectedSite.name,
+                      });
                       setDeleteProjectModalVisible(true);
                     }
                   }}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#DC2626" style={{ marginRight: 8 }} />
+                  <Ionicons
+                    name="trash-outline"
+                    size={18}
+                    color="#DC2626"
+                    style={{ marginRight: 8 }}
+                  />
                   <Text
                     style={{
                       fontSize: 14,
@@ -7707,7 +8616,7 @@ Project Team`;
                                 return new Date(
                                   Number(year),
                                   Number(month) - 1,
-                                  Number(day)
+                                  Number(day),
                                 );
                               };
 
@@ -7733,7 +8642,7 @@ Project Team`;
                               }
 
                               const days = Math.ceil(
-                                diffTime / (1000 * 3600 * 24)
+                                diffTime / (1000 * 3600 * 24),
                               );
                               return days > 0 ? days : 0;
                             })()}
@@ -7782,7 +8691,7 @@ Project Team`;
                                     return new Date(
                                       Number(year),
                                       Number(month) - 1,
-                                      Number(day)
+                                      Number(day),
                                     );
                                   };
                                   const start = parseDate(formData.startDate);
@@ -7827,7 +8736,7 @@ Project Team`;
                                       return new Date(
                                         Number(year),
                                         Number(month) - 1,
-                                        Number(day)
+                                        Number(day),
                                       );
                                     };
                                     const start = parseDate(formData.startDate);
@@ -7848,7 +8757,7 @@ Project Team`;
                                     }
                                     return `${Math.max(
                                       0,
-                                      Math.min(100, pct)
+                                      Math.min(100, pct),
                                     )}%`;
                                   })(),
                                   backgroundColor: "#166534",
@@ -7870,7 +8779,7 @@ Project Team`;
                                   return new Date(
                                     Number(year),
                                     Number(month) - 1,
-                                    Number(day)
+                                    Number(day),
                                   );
                                 };
                                 const start = parseDate(formData.startDate);
@@ -7886,15 +8795,15 @@ Project Team`;
                                   today.getTime() - start.getTime();
 
                                 const totalDays = Math.ceil(
-                                  totalDuration / (1000 * 3600 * 24)
+                                  totalDuration / (1000 * 3600 * 24),
                                 );
                                 const elapsedDays = Math.ceil(
-                                  elapsed / (1000 * 3600 * 24)
+                                  elapsed / (1000 * 3600 * 24),
                                 );
 
                                 const validElapsed = Math.max(
                                   0,
-                                  Math.min(totalDays, elapsedDays)
+                                  Math.min(totalDays, elapsedDays),
                                 );
                                 return `${validElapsed} of ${totalDays} days completed`;
                               })()}
@@ -7926,14 +8835,14 @@ Project Team`;
                           >
                             {projectTasks.length > 0
                               ? Math.round(
-                                (projectTasks.filter(
-                                  (t) =>
-                                    t.status === "Completed" ||
-                                    t.status === "completed"
-                                ).length /
-                                  projectTasks.length) *
-                                100
-                              )
+                                  (projectTasks.filter(
+                                    (t) =>
+                                      t.status === "Completed" ||
+                                      t.status === "completed",
+                                  ).length /
+                                    projectTasks.length) *
+                                    100,
+                                )
                               : 0}
                             %
                           </Text>
@@ -7949,18 +8858,19 @@ Project Team`;
                           <View
                             style={{
                               height: "100%",
-                              width: `${projectTasks.length > 0
-                                ? Math.round(
-                                  (projectTasks.filter(
-                                    (t) =>
-                                      t.status === "Completed" ||
-                                      t.status === "completed"
-                                  ).length /
-                                    projectTasks.length) *
-                                  100
-                                )
-                                : 0
-                                }%`,
+                              width: `${
+                                projectTasks.length > 0
+                                  ? Math.round(
+                                      (projectTasks.filter(
+                                        (t) =>
+                                          t.status === "Completed" ||
+                                          t.status === "completed",
+                                      ).length /
+                                        projectTasks.length) *
+                                        100,
+                                    )
+                                  : 0
+                              }%`,
                               backgroundColor: "#166534",
                               borderRadius: 6,
                             }}
@@ -8013,7 +8923,7 @@ Project Team`;
                               projectTasks.filter(
                                 (t) =>
                                   t.status === "Completed" ||
-                                  t.status === "completed"
+                                  t.status === "completed",
                               ).length
                             }
                           </Text>
@@ -8046,7 +8956,7 @@ Project Team`;
                               projectTasks.filter(
                                 (t) =>
                                   t.status !== "Completed" &&
-                                  t.status !== "completed"
+                                  t.status !== "completed",
                               ).length
                             }
                           </Text>
@@ -8069,138 +8979,6 @@ Project Team`;
             <View></View>
           </View>
         </SafeAreaView>
-      </Modal>
-
-      {/* Add New Stage Modal */}
-      <Modal
-        visible={addStageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setAddStageModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 }}>Add New Construction Stage (Serial No.)</Text>
-
-            {/* Floor Selection */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {availableFloors.map(floor => (
-                <TouchableOpacity
-                  key={floor}
-                  onPress={() => setNewStageFloor(floor)}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    backgroundColor: newStageFloor === floor ? '#8B0000' : '#F3F4F6',
-                    borderWidth: 1,
-                    borderColor: newStageFloor === floor ? '#8B0000' : '#E5E7EB'
-                  }}
-                >
-                  <Text style={{ color: newStageFloor === floor ? '#fff' : '#4B5563', fontSize: 13, fontWeight: '600' }}>{floor}</Text>
-                </TouchableOpacity>
-              ))}
-
-              <TouchableOpacity
-                onPress={() => setCustomFloorInputVisible(true)}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  backgroundColor: '#F3F4F6',
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderStyle: 'dashed'
-                }}
-              >
-                <Text style={{ color: '#4B5563', fontSize: 13, fontWeight: '600' }}>+ More Floors</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Custom Floor Input */}
-            {customFloorInputVisible && (
-              <View style={{ marginBottom: 20, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                <TextInput
-                  style={{
-                    borderWidth: 1,
-                    borderColor: '#D1D5DB',
-                    borderRadius: 8,
-                    padding: 10,
-                    fontSize: 14,
-                    color: '#111827',
-                    flex: 1,
-                    height: 40
-                  }}
-                  placeholder="Enter Floor No. (e.g. 3)"
-                  keyboardType="numeric"
-                  value={customFloorInput}
-                  onChangeText={setCustomFloorInput}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  onPress={handleAddCustomFloor}
-                  style={{ padding: 10, borderRadius: 8, backgroundColor: '#111827', height: 40, justifyContent: 'center' }}
-                >
-                  <Text style={{ fontWeight: '600', color: '#fff', fontSize: 13 }}>Add</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-
-
-            {/* Serial Number */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: '#D1D5DB',
-                borderRadius: 8,
-                padding: 12,
-                fontSize: 14,
-                color: '#111827',
-                marginBottom: 20
-              }}
-              placeholder="Enter serial number (e.g. 1)"
-              keyboardType="numeric"
-              value={newStageSerialNumber}
-              onChangeText={setNewStageSerialNumber}
-            />
-
-            {/* Stage Name */}
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Stage Name *</Text>
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: '#D1D5DB',
-                borderRadius: 8,
-                padding: 12,
-                fontSize: 14,
-                color: '#111827',
-                marginBottom: 24
-              }}
-              placeholder="Enter stage name (e.g. Roof Slab)"
-              value={newStageName}
-              onChangeText={setNewStageName}
-            />
-
-            {/* Actions */}
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                onPress={() => setAddStageModalVisible(false)}
-                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' }}
-              >
-                <Text style={{ fontWeight: '600', color: '#374151' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleAddNewStage}
-                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#8B0000', alignItems: 'center' }}
-              >
-                <Text style={{ fontWeight: '600', color: '#fff' }}>Add Stage</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
       </Modal>
 
       <Modal
@@ -8396,7 +9174,9 @@ Project Team`;
                   }
                   secureTextEntry={!showPassword}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                >
                   <Ionicons
                     name={showPassword ? "eye" : "eye-off"}
                     size={20}
@@ -8571,7 +9351,7 @@ Project Team`;
                 ) {
                   Alert.alert(
                     "Error",
-                    "Please fill in all required fields (Name, Email, Phone, Role, Password)"
+                    "Please fill in all required fields (Name, Email, Phone, Role, Password)",
                   );
                   return;
                 }
@@ -8604,7 +9384,7 @@ Project Team`;
                   console.error("Error saving employee:", error);
                   Alert.alert(
                     "Error",
-                    error.response?.data?.message || "Failed to save worker"
+                    error.response?.data?.message || "Failed to save worker",
                   );
                 }
               }}
@@ -8617,150 +9397,6 @@ Project Team`;
         </SafeAreaView>
       </Modal>
 
-      {/* Add New Stage Modal */}
-      <Modal
-        visible={addStageModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setAddStageModalVisible(false)}
-      >
-        <View style={styles.miniModalOverlay}>
-          <View style={[styles.miniModalContent, { maxWidth: 500 }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={styles.miniModalTitle}>Add New Construction Stage (Serial No.)</Text>
-              <TouchableOpacity onPress={() => setAddStageModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {availableFloors.map(floor => (
-                <TouchableOpacity
-                  key={floor}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: newStageFloor === floor ? '#8B0000' : '#D1D5DB',
-                    backgroundColor: newStageFloor === floor ? '#8B0000' : '#FFF',
-                  }}
-                  onPress={() => setNewStageFloor(floor)}
-                >
-                  <Text style={{ color: newStageFloor === floor ? '#FFF' : '#374151', fontWeight: '600', fontSize: 13 }}>
-                    {floor}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {!customFloorInputVisible ? (
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-                onPress={() => setCustomFloorInputVisible(true)}
-              >
-                <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
-                <Text style={{ color: '#8B0000', fontSize: 14, fontWeight: '600', marginLeft: 6 }}>+ More Floors</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Enter Floor Number</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: '#D1D5DB',
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      fontSize: 14,
-                    }}
-                    placeholder="e.g. 3"
-                    value={customFloorInput}
-                    onChangeText={setCustomFloorInput}
-                    keyboardType="numeric"
-                  />
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: '#8B0000',
-                      paddingHorizontal: 16,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                      justifyContent: 'center',
-                    }}
-                    onPress={handleAddCustomFloor}
-                  >
-                    <Text style={{ color: '#FFF', fontWeight: '600' }}>Add</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: '#F3F4F6',
-                      paddingHorizontal: 16,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                      justifyContent: 'center',
-                    }}
-                    onPress={() => {
-                      setCustomFloorInputVisible(false);
-                      setCustomFloorInput('');
-                    }}
-                  >
-                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
-            <TextInput
-              style={styles.miniModalInput}
-              placeholder="e.g. 2"
-              value={newStageSerialNumber}
-              onChangeText={setNewStageSerialNumber}
-              keyboardType="numeric"
-            />
-
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 }}>Stage Name *</Text>
-            <TextInput
-              style={styles.miniModalInput}
-              placeholder="e.g. site planning"
-              value={newStageName}
-              onChangeText={setNewStageName}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  paddingVertical: 14,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#D1D5DB',
-                  alignItems: 'center',
-                }}
-                onPress={() => setAddStageModalVisible(false)}
-              >
-                <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  paddingVertical: 14,
-                  borderRadius: 8,
-                  backgroundColor: '#8B0000',
-                  alignItems: 'center',
-                }}
-                onPress={handleAddNewStage}
-              >
-                <Text style={{ color: '#FFF', fontWeight: '600' }}>Add Stage</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Edit Phase Modal */}
       <Modal
         visible={editPhaseModalVisible}
@@ -8770,16 +9406,39 @@ Project Team`;
       >
         <View style={styles.miniModalOverlay}>
           <View style={[styles.miniModalContent, { maxWidth: 500 }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
               <Text style={styles.miniModalTitle}>Edit Construction Stage</Text>
               <TouchableOpacity onPress={() => setEditPhaseModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {availableFloors.map(floor => (
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+              }}
+            >
+              Select Floor *
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              {availableFloors.map((floor) => (
                 <TouchableOpacity
                   key={floor}
                   style={{
@@ -8787,12 +9446,20 @@ Project Team`;
                     paddingVertical: 10,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: editingPhaseFloor === floor ? '#8B0000' : '#D1D5DB',
-                    backgroundColor: editingPhaseFloor === floor ? '#8B0000' : '#FFF',
+                    borderColor:
+                      editingPhaseFloor === floor ? "#8B0000" : "#D1D5DB",
+                    backgroundColor:
+                      editingPhaseFloor === floor ? "#8B0000" : "#FFF",
                   }}
                   onPress={() => setEditingPhaseFloor(floor)}
                 >
-                  <Text style={{ color: editingPhaseFloor === floor ? '#FFF' : '#374151', fontWeight: '600', fontSize: 13 }}>
+                  <Text
+                    style={{
+                      color: editingPhaseFloor === floor ? "#FFF" : "#374151",
+                      fontWeight: "600",
+                      fontSize: 13,
+                    }}
+                  >
                     {floor}
                   </Text>
                 </TouchableOpacity>
@@ -8801,21 +9468,38 @@ Project Team`;
 
             {!editCustomFloorInputVisible ? (
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
                 onPress={() => setEditCustomFloorInputVisible(true)}
               >
                 <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
-                <Text style={{ color: '#8B0000', fontSize: 14, fontWeight: '600', marginLeft: 6 }}>+ More Floors</Text>
+                <Text
+                  style={{
+                    color: "#8B0000",
+                    fontSize: 14,
+                    fontWeight: "600",
+                    marginLeft: 6,
+                  }}
+                >
+                  + More Floors
+                </Text>
               </TouchableOpacity>
             ) : (
               <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Enter Floor Number</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Text
+                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}
+                >
+                  Enter Floor Number
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
                   <TextInput
                     style={{
                       flex: 1,
                       borderWidth: 1,
-                      borderColor: '#D1D5DB',
+                      borderColor: "#D1D5DB",
                       borderRadius: 8,
                       paddingHorizontal: 12,
                       paddingVertical: 10,
@@ -8828,36 +9512,49 @@ Project Team`;
                   />
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#2563EB',
+                      backgroundColor: "#2563EB",
                       paddingHorizontal: 16,
                       paddingVertical: 10,
                       borderRadius: 8,
-                      justifyContent: 'center',
+                      justifyContent: "center",
                     }}
                     onPress={handleEditAddCustomFloor}
                   >
-                    <Text style={{ color: '#FFF', fontWeight: '600' }}>Add</Text>
+                    <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                      Add
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#F3F4F6',
+                      backgroundColor: "#F3F4F6",
                       paddingHorizontal: 16,
                       paddingVertical: 10,
                       borderRadius: 8,
-                      justifyContent: 'center',
+                      justifyContent: "center",
                     }}
                     onPress={() => {
                       setEditCustomFloorInputVisible(false);
-                      setEditCustomFloorInput('');
+                      setEditCustomFloorInput("");
                     }}
                   >
-                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                    <Text style={{ color: "#6B7280", fontWeight: "600" }}>
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+              }}
+            >
+              Serial Number *
+            </Text>
             <TextInput
               style={styles.miniModalInput}
               placeholder="e.g. 2"
@@ -8866,7 +9563,17 @@ Project Team`;
               keyboardType="numeric"
             />
 
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 }}>Stage Name *</Text>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: 8,
+                marginTop: 16,
+              }}
+            >
+              Stage Name *
+            </Text>
             <TextInput
               style={styles.miniModalInput}
               placeholder="e.g. site planning"
@@ -8874,31 +9581,35 @@ Project Team`;
               onChangeText={setEditingPhaseName}
             />
 
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
               <TouchableOpacity
                 style={{
                   flex: 1,
                   paddingVertical: 14,
                   borderRadius: 8,
                   borderWidth: 1,
-                  borderColor: '#D1D5DB',
-                  alignItems: 'center',
+                  borderColor: "#D1D5DB",
+                  alignItems: "center",
                 }}
                 onPress={() => setEditPhaseModalVisible(false)}
               >
-                <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: "#6B7280", fontWeight: "600" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{
                   flex: 1,
                   paddingVertical: 14,
                   borderRadius: 8,
-                  backgroundColor: '#2563EB',
-                  alignItems: 'center',
+                  backgroundColor: "#2563EB",
+                  alignItems: "center",
                 }}
                 onPress={handleUpdatePhase}
               >
-                <Text style={{ color: '#FFF', fontWeight: '600' }}>Update Stage</Text>
+                <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                  Update Stage
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -8918,8 +9629,6 @@ Project Team`;
           onPress={() => setStageOptionsVisible(false)}
         >
           <View style={styles.menuContainer}>
-
-
             {/* Edit Stage Option */}
             <TouchableOpacity
               style={styles.menuItem}
@@ -8929,7 +9638,9 @@ Project Team`;
                   setEditingPhaseId(selectedStageOption.id);
                   setEditingPhaseName(selectedStageOption.name);
                   setEditingPhaseFloor(selectedStageOption.floor || "");
-                  setEditingPhaseSerialNumber(String(selectedStageOption.serial_number || ""));
+                  setEditingPhaseSerialNumber(
+                    String(selectedStageOption.serial_number || ""),
+                  );
                   setEditPhaseModalVisible(true);
                 }
               }}
@@ -8945,7 +9656,10 @@ Project Team`;
                 if (selectedStageOption) {
                   setStageOptionsVisible(false);
                   setStageOptionsVisible(false);
-                  setPhaseToDelete({ id: selectedStageOption.id, name: selectedStageOption.name });
+                  setPhaseToDelete({
+                    id: selectedStageOption.id,
+                    name: selectedStageOption.name,
+                  });
                 }
               }}
             >
@@ -8964,10 +9678,15 @@ Project Team`;
                   setActivePhaseId(selectedStageOption.id);
 
                   // Auto-calculate next serial number/order index for tasks in this phase
-                  const phaseTasks = projectTasks.filter((t: any) => t.phase_id === selectedStageOption.id);
-                  const maxOrder = phaseTasks.length > 0
-                    ? Math.max(...phaseTasks.map((t: any) => t.order_index || 0))
-                    : 0;
+                  const phaseTasks = projectTasks.filter(
+                    (t: any) => t.phase_id === selectedStageOption.id,
+                  );
+                  const maxOrder =
+                    phaseTasks.length > 0
+                      ? Math.max(
+                          ...phaseTasks.map((t: any) => t.order_index || 0),
+                        )
+                      : 0;
 
                   setNewTaskSerialNumber(String(maxOrder + 1));
                   setNewTaskName("");
@@ -8999,7 +9718,6 @@ Project Team`;
         onCancel={() => setPhaseToDelete(null)}
       />
 
-
       {/* Delete Project Confirmation Modal */}
       <Modal
         visible={deleteProjectModalVisible}
@@ -9008,71 +9726,121 @@ Project Team`;
         onRequestClose={() => setDeleteProjectModalVisible(false)}
       >
         <View style={styles.miniModalOverlay}>
-          <View style={[styles.miniModalContent, { maxWidth: 500, padding: 24 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-              <View style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: '#FEE2E2',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 16,
-              }}>
+          <View
+            style={[styles.miniModalContent, { maxWidth: 500, padding: 24 }]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: "#FEE2E2",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 16,
+                }}
+              >
                 <Ionicons name="warning" size={28} color="#DC2626" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: "#111827",
+                    marginBottom: 4,
+                  }}
+                >
                   Delete Project Permanently?
                 </Text>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                <Text style={{ fontSize: 13, color: "#6B7280" }}>
                   This action cannot be undone
                 </Text>
               </View>
             </View>
 
-            <View style={{
-              backgroundColor: '#FEF2F2',
-              borderLeftWidth: 4,
-              borderLeftColor: '#DC2626',
-              padding: 16,
-              borderRadius: 8,
-              marginBottom: 20,
-            }}>
-              <Text style={{ fontSize: 14, color: '#374151', marginBottom: 8, fontWeight: '600' }}>
+            <View
+              style={{
+                backgroundColor: "#FEF2F2",
+                borderLeftWidth: 4,
+                borderLeftColor: "#DC2626",
+                padding: 16,
+                borderRadius: 8,
+                marginBottom: 20,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: "#374151",
+                  marginBottom: 8,
+                  fontWeight: "600",
+                }}
+              >
                 ⚠️ Warning: This will permanently delete:
               </Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
-                • Project: <Text style={{ fontWeight: '600', color: '#111827' }}>{projectToDelete?.name}</Text>
+              <Text style={{ fontSize: 13, color: "#6B7280", marginLeft: 16 }}>
+                • Project:{" "}
+                <Text style={{ fontWeight: "600", color: "#111827" }}>
+                  {projectToDelete?.name}
+                </Text>
               </Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+              <Text style={{ fontSize: 13, color: "#6B7280", marginLeft: 16 }}>
                 • All construction stages
               </Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+              <Text style={{ fontSize: 13, color: "#6B7280", marginLeft: 16 }}>
                 • All tasks and subtasks
               </Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+              <Text style={{ fontSize: 13, color: "#6B7280", marginLeft: 16 }}>
                 • All files and documents
               </Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+              <Text style={{ fontSize: 13, color: "#6B7280", marginLeft: 16 }}>
                 • All project history
               </Text>
             </View>
 
-            <Text style={{ fontSize: 13, color: '#374151', marginBottom: 8, fontWeight: '600' }}>
-              Type <Text style={{ fontFamily: 'monospace', backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, color: '#DC2626', fontWeight: '700' }}>DELETE</Text> to confirm:
+            <Text
+              style={{
+                fontSize: 13,
+                color: "#374151",
+                marginBottom: 8,
+                fontWeight: "600",
+              }}
+            >
+              Type{" "}
+              <Text
+                style={{
+                  fontFamily: "monospace",
+                  backgroundColor: "#F3F4F6",
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  color: "#DC2626",
+                  fontWeight: "700",
+                }}
+              >
+                DELETE
+              </Text>{" "}
+              to confirm:
             </Text>
 
             <TextInput
               style={{
                 borderWidth: 1,
-                borderColor: deleteConfirmText.trim() === "DELETE" ? '#22C55E' : '#D1D5DB',
+                borderColor:
+                  deleteConfirmText.trim() === "DELETE" ? "#22C55E" : "#D1D5DB",
                 borderRadius: 8,
                 paddingHorizontal: 14,
                 paddingVertical: 12,
                 fontSize: 14,
-                fontFamily: 'monospace',
-                backgroundColor: '#FFF',
+                fontFamily: "monospace",
+                backgroundColor: "#FFF",
                 marginBottom: 20,
               }}
               placeholder="Type DELETE here"
@@ -9082,14 +9850,14 @@ Project Team`;
               autoCorrect={false}
             />
 
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity
                 style={{
                   flex: 1,
                   paddingVertical: 14,
                   borderRadius: 8,
-                  backgroundColor: '#F3F4F6',
-                  alignItems: 'center',
+                  backgroundColor: "#F3F4F6",
+                  alignItems: "center",
                 }}
                 onPress={() => {
                   setDeleteProjectModalVisible(false);
@@ -9097,20 +9865,27 @@ Project Team`;
                   setProjectToDelete(null);
                 }}
               >
-                <Text style={{ color: '#374151', fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: "#374151", fontWeight: "600" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{
                   flex: 1,
                   paddingVertical: 14,
                   borderRadius: 8,
-                  backgroundColor: deleteConfirmText.trim() === "DELETE" ? '#DC2626' : '#FCA5A5',
-                  alignItems: 'center',
+                  backgroundColor:
+                    deleteConfirmText.trim() === "DELETE"
+                      ? "#DC2626"
+                      : "#FCA5A5",
+                  alignItems: "center",
                 }}
                 onPress={handleDeleteProject}
                 disabled={deleteConfirmText.trim() !== "DELETE"}
               >
-                <Text style={{ color: '#FFF', fontWeight: '700' }}>Delete Forever</Text>
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>
+                  Delete Forever
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -9129,7 +9904,7 @@ Project Team`;
         initialFrom={dateRange?.from}
         initialTo={dateRange?.to}
       />
-    </SafeAreaView >
+    </SafeAreaView>
   );
 };
 
@@ -9270,7 +10045,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  filterChipText: {
+  newFilterChipText: {
     fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
@@ -9636,7 +10411,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     height: 44,
   },
-  searchInput: {
+  searchContainerInput: {
     flex: 1,
     height: "100%",
     paddingHorizontal: 10,
@@ -9808,7 +10583,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#111827",
+    color: "#1E40AF",
   },
   detailsButton: {
     backgroundColor: "#000000",
@@ -10100,8 +10875,9 @@ const styles = StyleSheet.create({
   // Full Modal Styles (for Task Details)
   fullModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fullModalContent: {
     backgroundColor: "#fff",
@@ -10529,8 +11305,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
+    fontWeight: "700",
+    color: "#1E40AF",
     marginBottom: 8,
   },
   required: {
@@ -11033,7 +11809,7 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    minWidth: '44%',
+    minWidth: "44%",
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
@@ -11080,7 +11856,7 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    minWidth: '44%',
+    minWidth: "44%",
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
@@ -11168,7 +11944,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9ca3af",
   },
+
+  // Add Stage Modal & Filter Styles
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#f9fafb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterChipSelected: {
+    backgroundColor: "#3B82F6",
+    borderColor: "#3B82F6",
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: "#4b5563",
+    fontWeight: "500",
+  },
+  searchInput: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    backgroundColor: "#f9fafb",
+    fontSize: 14,
+    color: "#1f2937",
+  },
+  primaryButton: {
+    backgroundColor: "#1d4ed8",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
 });
 
 export default AdminDashboardScreen;
-

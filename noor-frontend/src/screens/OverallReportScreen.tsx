@@ -196,6 +196,10 @@ const OverallReportScreen = ({ navigation }: any) => {
     // Employee Filter State
     const [sortBy, setSortBy] = useState<'best' | 'overdue' | 'inactive'>('best');
 
+    // Financial Project Filter State
+    const [selectedFinancialProject, setSelectedFinancialProject] = useState<'all' | number>('all');
+    const [showFinancialProjectPicker, setShowFinancialProjectPicker] = useState(false);
+
     const getSortedEmployees = useCallback(() => {
         if (!report?.employeePerformance) return [];
         let filtered = report.employeePerformance;
@@ -207,6 +211,66 @@ const OverallReportScreen = ({ navigation }: any) => {
             return 0;
         });
     }, [report, sortBy]);
+
+    // Calculate filtered financial data based on selected project
+    const getFilteredFinancialData = useCallback(() => {
+        if (!report) return null;
+
+        if (selectedFinancialProject === 'all') {
+            // Return combined data for all projects
+            return {
+                total_allocated: report.financialSummary.total_allocated,
+                total_received: report.financialSummary.total_received,
+                total_expenses: report.financialSummary.total_expenses,
+                balance: report.financialSummary.balance,
+                utilization_percentage: report.financialSummary.utilization_percentage,
+            };
+        } else {
+            // Find the specific project and return its financial data
+            const project = report.projectSummary.find((p: any) => p.id === selectedFinancialProject);
+            if (!project) {
+                return {
+                    total_allocated: 0,
+                    total_received: 0,
+                    total_expenses: 0,
+                    balance: 0,
+                    utilization_percentage: 0,
+                };
+            }
+
+            // Calculate project-specific financial data
+            const allocated = Number(project.budget || 0);
+            const received = Number(project.received || 0);
+            const expenses = Number(project.spent || 0);
+            const balance = received - expenses;
+            const utilization = allocated > 0 ? ((expenses / allocated) * 100).toFixed(1) : '0';
+
+            return {
+                total_allocated: allocated,
+                total_received: received,
+                total_expenses: expenses,
+                balance: balance,
+                utilization_percentage: utilization,
+            };
+        }
+    }, [report, selectedFinancialProject]);
+
+    // Filter top expense projects based on selection
+    const getFilteredTopExpenses = useCallback(() => {
+        if (!report) return [];
+
+        if (selectedFinancialProject === 'all') {
+            return report.topExpenseProjects || [];
+        } else {
+            // Show only the selected project
+            const project = report.projectSummary.find((p: any) => p.id === selectedFinancialProject);
+            if (!project) return [];
+            return [{
+                name: project.name,
+                spent: project.spent || 0
+            }];
+        }
+    }, [report, selectedFinancialProject]);
 
     useFocusEffect(useCallback(() => { fetchProjects(); }, []));
     useFocusEffect(useCallback(() => { fetchReport(); }, [fromDate, toDate, selectedProject]));
@@ -582,43 +646,127 @@ const OverallReportScreen = ({ navigation }: any) => {
 
                 {/* 5. Financial Overview */}
                 <View style={styles.sectionContainer}>
-                    <SectionHeader title="Financial Overview" icon="cash-outline" />
+                    {/* Header with Project Selector */}
+                    <View style={styles.sectionHeaderRow}>
+                        <SectionHeader title="Financial Overview" icon="cash-outline" />
+
+                        {/* Project Selector Dropdown */}
+                        <TouchableOpacity
+                            style={styles.projectSelectorBtn}
+                            onPress={() => setShowFinancialProjectPicker(!showFinancialProjectPicker)}
+                        >
+                            <Text style={styles.projectSelectorText}>
+                                {selectedFinancialProject === 'all'
+                                    ? 'All Projects'
+                                    : projects.find(p => p.id === selectedFinancialProject)?.name || 'Select Project'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Project Picker Dropdown */}
+                    {showFinancialProjectPicker && (
+                        <View style={styles.projectPickerDropdown}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.projectPickerItem,
+                                    selectedFinancialProject === 'all' && styles.projectPickerItemActive
+                                ]}
+                                onPress={() => {
+                                    setSelectedFinancialProject('all');
+                                    setShowFinancialProjectPicker(false);
+                                }}
+                            >
+                                <Text style={[
+                                    styles.projectPickerItemText,
+                                    selectedFinancialProject === 'all' && styles.projectPickerItemTextActive
+                                ]}>All Projects</Text>
+                                {selectedFinancialProject === 'all' && (
+                                    <Ionicons name="checkmark" size={18} color="#10B981" />
+                                )}
+                            </TouchableOpacity>
+
+                            {projects.map((project) => (
+                                <TouchableOpacity
+                                    key={project.id}
+                                    style={[
+                                        styles.projectPickerItem,
+                                        selectedFinancialProject === project.id && styles.projectPickerItemActive
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedFinancialProject(project.id);
+                                        setShowFinancialProjectPicker(false);
+                                    }}
+                                >
+                                    <Text style={[
+                                        styles.projectPickerItemText,
+                                        selectedFinancialProject === project.id && styles.projectPickerItemTextActive
+                                    ]}>{project.name}</Text>
+                                    {selectedFinancialProject === project.id && (
+                                        <Ionicons name="checkmark" size={18} color="#10B981" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
 
                     <View style={styles.financialMain}>
-                        <View style={styles.finRow}>
-                            <View>
-                                <Text style={styles.finLabel}>Total Allocation</Text>
-                                <Text style={styles.finBigVal}>₹{Number(report.financialSummary.total_allocated).toLocaleString()}</Text>
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.finLabel}>Utilization</Text>
-                                <Text style={[styles.finBigVal, { color: '#F59E0B' }]}>{report.financialSummary.utilization_percentage}%</Text>
-                            </View>
-                        </View>
+                        {(() => {
+                            const financialData = getFilteredFinancialData();
+                            if (!financialData) return null;
 
-                        {/* Progress Bar */}
-                        <View style={styles.finProgressContainer}>
-                            <View style={[styles.finProgressBar, { width: `${Math.min(Number(report.financialSummary.utilization_percentage), 100)}%`, backgroundColor: Number(report.financialSummary.utilization_percentage) > 85 ? '#EF4444' : '#10B981' }]} />
-                        </View>
-
-                        <View style={styles.finStatsGrid}>
-                            <DetailItem label="Total Received" value={`₹${Number(report.financialSummary.total_received).toLocaleString()}`} color="#10B981" />
-                            <DetailItem label="Total Expenses" value={`₹${Number(report.financialSummary.total_expenses).toLocaleString()}`} color="#EF4444" />
-                            <DetailItem label="Remaining" value={`₹${Number(report.financialSummary.balance).toLocaleString()}`} color="#3B82F6" />
-                        </View>
-
-                        {/* Top Expenses */}
-                        {report.topExpenseProjects.length > 0 && (
-                            <View style={styles.topExpContainer}>
-                                <Text style={styles.subHeader}>Top Expenses by Project</Text>
-                                {report.topExpenseProjects.map((p, i) => (
-                                    <View key={i} style={styles.expRow}>
-                                        <Text style={styles.expName}>{p.name}</Text>
-                                        <Text style={styles.expVal}>₹{Number(p.spent).toLocaleString()}</Text>
+                            return (
+                                <>
+                                    <View style={styles.finRow}>
+                                        <View>
+                                            <Text style={styles.finLabel}>Total Allocation</Text>
+                                            <Text style={styles.finBigVal}>₹{Number(financialData.total_allocated).toLocaleString()}</Text>
+                                        </View>
+                                        <View style={{ alignItems: 'flex-end' }}>
+                                            <Text style={styles.finLabel}>Utilization</Text>
+                                            <Text style={[styles.finBigVal, { color: '#F59E0B' }]}>{financialData.utilization_percentage}%</Text>
+                                        </View>
                                     </View>
-                                ))}
-                            </View>
-                        )}
+
+                                    {/* Progress Bar */}
+                                    <View style={styles.finProgressContainer}>
+                                        <View style={[
+                                            styles.finProgressBar,
+                                            {
+                                                width: `${Math.min(Number(financialData.utilization_percentage), 100)}%`,
+                                                backgroundColor: Number(financialData.utilization_percentage) > 85 ? '#EF4444' : '#10B981'
+                                            }
+                                        ]} />
+                                    </View>
+
+                                    <View style={styles.finStatsGrid}>
+                                        <DetailItem label="Total Received" value={`₹${Number(financialData.total_received).toLocaleString()}`} color="#10B981" />
+                                        <DetailItem label="Total Expenses" value={`₹${Number(financialData.total_expenses).toLocaleString()}`} color="#EF4444" />
+                                        <DetailItem label="Remaining" value={`₹${Number(financialData.balance).toLocaleString()}`} color="#3B82F6" />
+                                    </View>
+
+                                    {/* Top Expenses */}
+                                    {(() => {
+                                        const topExpenses = getFilteredTopExpenses();
+                                        return topExpenses.length > 0 && (
+                                            <View style={styles.topExpContainer}>
+                                                <Text style={styles.subHeader}>
+                                                    {selectedFinancialProject === 'all'
+                                                        ? 'Top Expenses by Project'
+                                                        : 'Project Expenses'}
+                                                </Text>
+                                                {topExpenses.map((p, i) => (
+                                                    <View key={i} style={styles.expRow}>
+                                                        <Text style={styles.expName}>{p.name}</Text>
+                                                        <Text style={styles.expVal}>₹{Number(p.spent).toLocaleString()}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        );
+                                    })()}
+                                </>
+                            );
+                        })()}
                     </View>
                 </View>
 
@@ -1052,6 +1200,61 @@ const styles = StyleSheet.create({
     ratingPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
     ratingText: { fontSize: 10, fontWeight: '700' },
     emptyText: { textAlign: 'center', color: '#9CA3AF', marginVertical: 20 },
+
+    // Project Selector Dropdown
+    projectSelectorBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        gap: 8,
+        minWidth: 140,
+    },
+    projectSelectorText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    projectPickerDropdown: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        marginTop: 8,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+        maxHeight: 300,
+        overflow: 'scroll',
+    },
+    projectPickerItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    projectPickerItemActive: {
+        backgroundColor: '#F0FDF4',
+    },
+    projectPickerItemText: {
+        fontSize: 14,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    projectPickerItemTextActive: {
+        color: '#10B981',
+        fontWeight: '700',
+    },
 });
 
 export default OverallReportScreen;

@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { logTaskAssigned, logTaskCompleted, lockWorkerActivity } = require('../utils/activityLogger');
 
 // Add Task Update (Progress)
 exports.addTaskUpdate = async (req, res) => {
@@ -54,6 +55,9 @@ exports.addTaskUpdate = async (req, res) => {
                     INSERT INTO task_messages (task_id, sender_id, type, content)
                     VALUES (?, NULL, 'system', 'Task marked as completed. Waiting for admin approval.')
                 `, [taskId]);
+
+                // AUTO-LOG: Task completed + Attendance
+                await logTaskCompleted(employeeId);
             }
 
             if (incompleteTasks.length === 0) {
@@ -157,6 +161,8 @@ exports.completeTask = async (req, res) => {
                 FROM employees WHERE role = 'Admin' OR role = 'admin'
             `, [task.site_id, task.phase_id, taskId, `Task "${task.name}" submitted for approval`]);
 
+            // AUTO-LOG: Task completed + Attendance
+            await logTaskCompleted(employeeId);
         }
 
         res.json({ message: 'Task submitted for approval' });
@@ -185,16 +191,22 @@ exports.approveTask = async (req, res) => {
         );
 
         // Notify All Assigned Employees
-        const [taskData] = await db.query('SELECT site_id, phase_id, name FROM tasks WHERE id = ?', [taskId]);
+        const [taskData] = await db.query('SELECT site_id, phase_id, name, completed_at FROM tasks WHERE id = ?', [taskId]);
         if (taskData.length > 0) {
             const task = taskData[0];
             const [assignees] = await db.query('SELECT employee_id FROM task_assignments WHERE task_id = ?', [taskId]);
+
+            // Get the completion date
+            const completionDate = task.completed_at ? new Date(task.completed_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
             for (const assignee of assignees) {
                 await db.query(`
                     INSERT INTO notifications (project_id, phase_id, task_id, employee_id, type, message, is_read, created_at)
                     VALUES (?, ?, ?, ?, 'TASK_APPROVED', ?, 0, NOW())
                 `, [task.site_id, task.phase_id, taskId, assignee.employee_id, `Your work on "${task.name}" has been approved!`]);
+
+                // 🔒 LOCK ACTIVITY LOGS - Make them permanent and immutable
+                await lockWorkerActivity(assignee.employee_id, completionDate, adminId);
             }
 
             // Add system message to chat
@@ -302,6 +314,9 @@ exports.toggleTaskAssignment = async (req, res) => {
                     INSERT INTO notifications (project_id, phase_id, task_id, employee_id, type, message, is_read, created_at)
                     VALUES (?, ?, ?, ?, 'ASSIGNMENT', ?, 0, NOW())
                 `, [site_id, phase_id, taskId, employeeId, message]);
+
+                // AUTO-LOG: Task assigned activity
+                await logTaskAssigned(employeeId);
             }
         }
 
@@ -383,6 +398,9 @@ exports.updateTask = async (req, res) => {
                             INSERT INTO notifications (project_id, phase_id, task_id, employee_id, type, message, is_read, created_at)
                             VALUES (?, ?, ?, ?, 'ASSIGNMENT', ?, 0, NOW())
                         `, [site_id, phase_id, taskId, empId, message]);
+
+                        // AUTO-LOG: Task assigned activity
+                        await logTaskAssigned(empId);
                     }
                 }
             }

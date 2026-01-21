@@ -114,7 +114,9 @@ exports.getOverallReport = async (req, res) => {
                 (SELECT COUNT(*) FROM tasks WHERE site_id = s.id AND status != 'completed' AND due_date < CURDATE()) as delayed_tasks_count,
                 SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks, -- Period Activity
                 SUM(CASE WHEN t.status = 'waiting_for_approval' THEN 1 ELSE 0 END) as pending_approvals,
-                 (SELECT SUM(budget) FROM phases WHERE site_id = s.id) as total_allocated
+                 (SELECT SUM(budget) FROM phases WHERE site_id = s.id) as total_allocated,
+                 (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE site_id = s.id AND type = 'OUT') as spent,
+                 (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE site_id = s.id AND type = 'IN') as received
             FROM sites s
             LEFT JOIN tasks t ON s.id = t.site_id ${taskCompletionDateFilter ? taskCompletionDateFilter.replace(/updated_at/g, 't.updated_at') : ''}
             WHERE 1=1 ${projectFilter}

@@ -8,9 +8,15 @@ import {
     ActivityIndicator,
     Alert,
     useWindowDimensions,
-    Image
+    Dimensions,
+    TextInput as RNTextInput,
+    Image,
+    Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { LineChart } from 'react-native-chart-kit';
+import { BarChart } from 'react-native-gifted-charts';
 import api from '../services/api';
 
 interface WorkerDetailScreenProps {
@@ -19,14 +25,18 @@ interface WorkerDetailScreenProps {
 }
 
 interface ActivityData {
-    [week: string]: {
-        [metricId: string]: boolean[];
-        attendance: boolean[];
-        tasks_assigned: boolean[];
-        tasks_completed: boolean[];
-        overtime: boolean[];
+    [date: string]: {
+        [metricId: string]: boolean | number;
+        attendance: boolean;
+        tasks_assigned: number;
+        tasks_completed: number;
+        tasks_pending: number;
+        // Lock status
+        attendance_locked: boolean;
+        tasks_assigned_locked: boolean;
+        tasks_completed_locked: boolean;
     };
-}
+};
 
 interface WorkerDetails {
     id: number;
@@ -41,17 +51,14 @@ interface WorkerDetails {
 interface MonthlyStats {
     attendance_days: number;
     tasks_completed: number;
-    overtime_days: number;
 }
 
 const METRICS = [
     { id: 'attendance', label: 'Attendance', icon: 'time-outline', color: '#059669' },
     { id: 'tasks_assigned', label: 'Tasks Assigned', icon: 'list-outline', color: '#3B82F6' },
-    { id: 'tasks_completed', label: 'Tasks Completed', icon: 'checkmark-done-circle-outline', color: '#10B981' },
-    { id: 'overtime', label: 'Overtime', icon: 'moon-outline', color: '#F59E0B' },
+    { id: 'tasks_completed', label: 'Tasks Completed', icon: 'checkmark-circle-outline', color: '#F59E0B' },
 ];
 
-const WEEKS = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -63,13 +70,69 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
     const [worker, setWorker] = useState<WorkerDetails | null>(null);
     const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
     const [activityData, setActivityData] = useState<ActivityData>({});
-    const [productivityTrend, setProductivityTrend] = useState<any[]>([]);
+
     const [isLoading, setIsLoading] = useState(true);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
 
+    // Date Range Filter State & Logic
+    const [fromDate, setFromDate] = useState(() => {
+        const date = new Date();
+        date.setDate(1); // First day of current month
+        return date.toISOString().split('T')[0];
+    });
+    const [toDate, setToDate] = useState(() => {
+        const date = new Date();
+        return date.toISOString().split('T')[0];
+    });
+    const [activeDateField, setActiveDateField] = useState<'from' | 'to' | null>(null);
+
+    const onDateChange = (event: any, selectedDate?: Date) => {
+        const mode = activeDateField;
+
+        // Dismiss picker on Android automatically
+        if (Platform.OS === 'android') {
+            setActiveDateField(null);
+        }
+
+        if (event.type === 'dismissed') {
+            setActiveDateField(null);
+            return;
+        }
+
+        if (selectedDate && mode) {
+            // Adjust for timezone offset to prevent day shift
+            const offset = selectedDate.getTimezoneOffset() * 60000;
+            const localDate = new Date(selectedDate.getTime() - offset);
+            const dateStr = localDate.toISOString().split('T')[0];
+
+            if (mode === 'from') {
+                if (dateStr > toDate) {
+                    Alert.alert('Invalid Range', 'From date cannot be after To date');
+                } else {
+                    setFromDate(dateStr);
+                }
+            } else {
+                if (dateStr < fromDate) {
+                    Alert.alert('Invalid Range', 'To date cannot be before From date');
+                } else {
+                    setToDate(dateStr);
+                }
+            }
+        }
+
+        // Close picker on other platforms
+        if (Platform.OS !== 'android') setActiveDateField(null);
+    };
+
+    const formatDateDisplay = (dateString: string) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
     useEffect(() => {
         fetchWorkerData();
-    }, [workerId]);
+    }, [workerId, fromDate, toDate]);
 
     const fetchWorkerData = async () => {
         try {
@@ -80,13 +143,16 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
             setWorker(detailsResponse.data.worker);
             setMonthlyStats(detailsResponse.data.monthlyStats);
 
-            // Fetch activity data
-            const activityResponse = await api.get(`/admin/workers/${workerId}/activity`);
-            setActivityData(activityResponse.data.activityData);
+            // Fetch activity data with date range
+            const activityResponse = await api.get(`/admin/workers/${workerId}/activity`, {
+                params: {
+                    startDate: fromDate,
+                    endDate: toDate
+                }
+            });
+            setActivityData(activityResponse.data.activityData || {});
 
-            // Fetch productivity trend
-            const trendResponse = await api.get(`/admin/workers/${workerId}/productivity-trend`);
-            setProductivityTrend(trendResponse.data.trend);
+
         } catch (error) {
             console.error('Error fetching worker data:', error);
             Alert.alert('Error', 'Failed to load worker data');
@@ -95,120 +161,320 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
         }
     };
 
-    const toggleDay = async (week: string, metricId: string, dayIndex: number) => {
-        try {
-            // Calculate the actual date
-            const weekNumber = parseInt(week.split(' ')[1]) - 1;
-            const currentMonth = new Date();
-            const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-            const daysToAdd = weekNumber * 7 + dayIndex;
-            const activityDate = new Date(firstDayOfMonth);
-            activityDate.setDate(firstDayOfMonth.getDate() + daysToAdd);
 
-            const formattedDate = activityDate.toISOString().split('T')[0];
-            const currentValue = activityData[week]?.[metricId]?.[dayIndex] || false;
-            const newValue = !currentValue;
 
-            // Optimistic update
-            const newData = { ...activityData };
-            if (!newData[week]) {
-                newData[week] = {
-                    attendance: Array(7).fill(false),
-                    tasks_assigned: Array(7).fill(false),
-                    tasks_completed: Array(7).fill(false),
-                    overtime: Array(7).fill(false)
-                };
+    // Calculate attendance percentage (Simplified)
+    const calculateAttendancePercentage = () => {
+        if (!monthlyStats) return 0;
+        // Logic can be refined based on working days if needed
+        return Math.round((monthlyStats.attendance_days / 30) * 100) || 0;
+    };
+
+    // Generate Calendar Mapped Weeks based on Date Range
+    const calendarWeeks = React.useMemo(() => {
+        const weeks = [];
+        if (!fromDate || !toDate) return [];
+
+        const start = new Date(fromDate);
+        // Find Monday of the start week to ensure standard grid alignment
+        const day = start.getDay(); // 0 (Sun) to 6 (Sat)
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+
+        const gridStart = new Date(start);
+        gridStart.setDate(diff);
+
+        const end = new Date(toDate);
+        const current = new Date(gridStart);
+
+        let weekCount = 1;
+
+        // Loop until we cover the end date range
+        // Safety break at 52 weeks to prevent infinite loops
+        while ((current <= end || current.getDay() !== 1) && weekCount < 53) {
+            const weekDays: Date[] = [];
+            for (let i = 0; i < 7; i++) {
+                weekDays.push(new Date(current));
+                current.setDate(current.getDate() + 1);
             }
-            newData[week][metricId][dayIndex] = newValue;
-            setActivityData(newData);
+            weeks.push({ title: `Week ${weekCount}`, days: weekDays });
+            weekCount++;
 
-            // Send to backend
-            await api.post(`/admin/workers/${workerId}/activity/toggle`, {
-                activityDate: formattedDate,
-                metricType: metricId,
-                isChecked: newValue
-            });
-        } catch (error) {
-            console.error('Error toggling activity:', error);
-            Alert.alert('Error', 'Failed to update activity');
-            // Revert on error
-            fetchWorkerData();
+            // If we've passed the end date and just finished a Sunday (next is Monday), stop.
+            if (current > end && current.getDay() === 1) break;
         }
-    };
+        return weeks;
+    }, [fromDate, toDate]);
 
-    const getWeekProgress = (week: string) => {
-        if (!activityData[week]) return 0;
 
-        let totalChecks = 0;
-        let filledChecks = 0;
 
-        METRICS.forEach(m => {
-            totalChecks += 7;
-            filledChecks += activityData[week][m.id]?.filter(Boolean).length || 0;
-        });
+    // NEW Graph Data Logic (Stacked Bars + Area)
+    const graphData = React.useMemo(() => {
+        if (!fromDate || !toDate) return null;
 
-        return totalChecks > 0 ? Math.round((filledChecks / totalChecks) * 100) : 0;
-    };
+        const labels: string[] = [];
+        const attendanceData: number[] = [];
+        const taskStackedData: number[][] = [];
+        let hasActivity = false;
 
-    const renderWeekColumn = (week: string, index: number) => {
-        const progress = getWeekProgress(week);
-        const weekData = activityData[week] || {
-            attendance: Array(7).fill(false),
-            tasks_assigned: Array(7).fill(false),
-            tasks_completed: Array(7).fill(false),
-            overtime: Array(7).fill(false)
-        };
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const current = new Date(start);
 
+        let index = 0;
+
+        while (current <= end) {
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const day = String(current.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${day}`;
+
+            // Format: "01 Jan"
+            const labelStr = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+            // Sparse labels: First, Last, and every 5th
+            if (index === 0 || current.getDate() === 1 || index % 5 === 0) {
+                labels.push(labelStr);
+            } else {
+                labels.push('');
+            }
+
+            const dayData = activityData[dateKey];
+
+            // Attendance Trend (Area - 100% or 0)
+            const attVal = (dayData?.attendance && dayData?.attendance_locked) ? 100 : 0;
+            attendanceData.push(attVal);
+            if (attVal > 0) hasActivity = true;
+
+            // Tasks (Stacked Bar - Counts)
+            if (dayData?.tasks_assigned) {
+                const isComp = (dayData.tasks_completed && dayData.tasks_completed_locked);
+                if (isComp) {
+                    taskStackedData.push([1, 0]); // 1 Completed (Blue), 0 Pending
+                    hasActivity = true;
+                } else {
+                    taskStackedData.push([0, 1]); // 0 Completed, 1 Pending (Light Blue)
+                    hasActivity = true;
+                }
+            } else {
+                taskStackedData.push([0, 0]);
+            }
+
+            current.setDate(current.getDate() + 1);
+            index++;
+        }
+
+        if (labels.length === 0) return null;
+
+        return { labels, attendanceData, taskStackedData, hasActivity };
+    }, [fromDate, toDate, activityData]);
+
+    // NEW Graph Data Logic V2 (Grouped Bars + Area with Real Counts)
+    const graphDataV2 = React.useMemo(() => {
+        if (!fromDate || !toDate) return null;
+
+        const labels: string[] = [];
+        const attendanceData: number[] = [];
+        const groupedBarData: any[] = [];
+        let hasActivity = false;
+
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const current = new Date(start);
+
+        let index = 0;
+
+        while (current <= end) {
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const day = String(current.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${day}`;
+
+            const labelStr = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+            // Sparse labels for Area Chart
+            if (index === 0 || current.getDate() === 1 || index % 5 === 0) {
+                labels.push(labelStr);
+            } else {
+                labels.push('');
+            }
+
+            const dayData = activityData[dateKey];
+
+            // Attendance Trend
+            const attVal = (dayData?.attendance && dayData?.attendance_locked) ? 100 : 0;
+            attendanceData.push(attVal);
+            if (attVal > 0) hasActivity = true;
+
+            // Tasks (Grouped Bars: Pending vs Done)
+            const assigned = Number(dayData?.tasks_assigned || 0);
+            const completed = Number(dayData?.tasks_completed || 0);
+            const pending = (dayData?.tasks_pending !== undefined)
+                ? Number(dayData.tasks_pending)
+                : Math.max(0, assigned - completed);
+
+            if (assigned > 0 || completed > 0) hasActivity = true;
+
+            // Bar 1: Pending (Light Blue)
+            groupedBarData.push({
+                value: pending,
+                frontColor: '#93C5FD',
+                label: labelStr,
+                labelTextStyle: { fontSize: 10, color: '#6B7280', width: 40, textAlign: 'center' },
+                topLabelComponent: () => (
+                    (pending > 0) ? <Text style={{ fontSize: 10, color: '#374151', marginBottom: 4, textAlign: 'center' }}>{pending}</Text> : null
+                ),
+                spacing: 4,
+            });
+
+            // Bar 2: Done (Dark Blue)
+            groupedBarData.push({
+                value: completed,
+                frontColor: '#1E40AF',
+                topLabelComponent: () => (
+                    (completed > 0) ? <Text style={{ fontSize: 10, color: '#374151', marginBottom: 4, textAlign: 'center' }}>{completed}</Text> : null
+                ),
+                spacing: 24,
+            });
+
+            current.setDate(current.getDate() + 1);
+            index++;
+        }
+
+        if (labels.length === 0) return null;
+
+        return { labels, attendanceData, groupedBarData, hasActivity };
+    }, [fromDate, toDate, activityData]);
+
+    const renderWeekColumn = (week: { title: string, days: Date[] }, index: number) => {
         return (
-            <View key={week} style={[styles.weekCard, isMobile && styles.weekCardMobile]}>
-                {/* Week Header */}
-                <View style={styles.weekHeader}>
-                    <Text style={[styles.weekTitle, isMobile && currentWeekIndex === index && styles.weekTitleActive]}>
-                        {week}
-                    </Text>
-                    <View style={styles.weekHeaderDays}>
-                        {(isMobile ? DAYS_SHORT : DAYS).map((day, dIdx) => (
-                            <Text key={dIdx} style={[styles.dayText, isMobile && styles.dayTextMobile]}>
-                                {day}
-                            </Text>
-                        ))}
-                    </View>
+            <View key={index} style={[styles.weekCard, isMobile && styles.weekCardMobile]}>
+                {/* Week Title */}
+                <View style={styles.weekTitleContainer}>
+                    <Text style={styles.weekTitle}>{week.title}</Text>
                 </View>
 
-                {/* Grid Rows */}
-                <View style={styles.gridContainer}>
-                    {METRICS.map((metric) => (
-                        <View key={metric.id} style={styles.gridRow}>
-                            {weekData[metric.id].map((isChecked: boolean, dayIndex: number) => (
-                                <TouchableOpacity
+                {/* Day Headers - Spacer + 7 equal columns */}
+                <View style={[styles.dayHeaderRow, isMobile && { paddingLeft: 0 }]}>
+                    {/* Spacer for Label Column on Mobile */}
+                    <View style={{ width: isMobile ? 80 : 70 }} />
+
+                    {week.days.map((date, dayIndex) => {
+                        const dayName = DAYS_SHORT[dayIndex]; // M, T, W...
+                        const dayNum = date.getDate();
+                        // Check if date is within selected range
+                        const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD checks
+                        const isWithinRange = dateStr >= fromDate && dateStr <= toDate;
+
+                        return (
+                            <View key={dayIndex} style={[styles.dayHeaderCell, !isWithinRange && { opacity: 0.3 }]}>
+                                {isMobile ? (
+                                    <>
+                                        <Text style={styles.dayLetterMobile}>{dayName}</Text>
+                                        <Text style={styles.dayDateMobile}>{dayNum}</Text>
+                                    </>
+                                ) : (
+                                    <Text style={styles.dayLetter}>{dayName}</Text>
+                                )}
+                            </View>
+                        );
+                    })}
+                </View>
+
+                {/* Metric Rows */}
+                {METRICS.map((metric) => (
+                    <View key={metric.id} style={styles.metricRowContainer}>
+                        {/* Metric Label */}
+                        <View style={[styles.metricLabelCell, isMobile && { width: 80 }]}>
+                            <View style={[styles.metricIconBadge, { backgroundColor: metric.color + '20' }]}>
+                                <Ionicons name={metric.icon as any} size={14} color={metric.color} />
+                            </View>
+                            {/* Mobile: Show Label Inline */}
+                            {isMobile && (
+                                <Text style={[styles.metricLabelTextCompact, { fontSize: 10, marginLeft: 4 }]} numberOfLines={1}>
+                                    {metric.label}
+                                </Text>
+                            )}
+                            {/* Desktop: Hide Label */}
+                            {!isMobile && (
+                                <Text style={styles.metricLabelTextCompact} numberOfLines={1}>
+                                    {metric.label.split(' ')[0]}
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* 7 Checkbox Cells Mapped to Dates */}
+                        {week.days.map((date, dayIndex) => {
+                            // Construct Date Key YYYY-MM-DD
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const dateKey = `${year}-${month}-${day}`;
+
+                            // Range Check
+                            const isWithinRange = dateKey >= fromDate && dateKey <= toDate;
+                            if (!isWithinRange) {
+                                // Render Empty/Grey Box
+                                return (
+                                    <View key={dayIndex} style={[styles.checkboxCellContainer, isMobile && { paddingHorizontal: 3 }]}>
+                                        <View style={[styles.statusBox, isMobile && styles.statusBoxMobile, { backgroundColor: '#F3F4F6', borderColor: 'transparent' }]} />
+                                    </View>
+                                );
+                            }
+
+                            // Data Lookup
+                            const dayData = activityData[dateKey];
+                            const isChecked = dayData?.[metric.id] || false;
+                            const isLocked = dayData?.[`${metric.id}_locked`] || false;
+
+                            const tooltipText = isChecked
+                                ? (isLocked ? `${metric.label}: ✓ Approved` : `${metric.label}: Pending`)
+                                : `${metric.label}: Not marked`;
+
+                            return (
+                                <View
                                     key={dayIndex}
-                                    style={[styles.checkboxContainer, isMobile && styles.checkboxContainerMobile]}
-                                    onPress={() => toggleDay(week, metric.id, dayIndex)}
-                                    activeOpacity={0.7}
+                                    style={[styles.checkboxCellContainer, isMobile && { paddingHorizontal: 3 }]}
+                                    onTouchEnd={() => {
+                                        if (isMobile) {
+                                            Alert.alert('Read-Only', tooltipText);
+                                        }
+                                    }}
                                 >
                                     <View
                                         style={[
-                                            styles.checkbox,
-                                            isMobile && styles.checkboxMobile,
-                                            isChecked && { backgroundColor: metric.color, borderColor: metric.color },
-                                            !isChecked && { borderColor: '#E5E7EB' }
+                                            styles.statusBox,
+                                            isMobile ? styles.statusBoxMobile : null,
+                                            (!!isChecked && isLocked) ? {
+                                                backgroundColor: metric.color,
+                                                borderColor: metric.color,
+                                            } : null,
+                                            (!!isChecked && !isLocked) ? {
+                                                backgroundColor: '#FEF3C7',
+                                                borderColor: '#F59E0B',
+                                            } : null,
+                                            (!isChecked) ? {
+                                                backgroundColor: '#F9FAFB',
+                                                borderColor: '#E5E7EB',
+                                            } : null
                                         ]}
                                     >
-                                        {isChecked && <Ionicons name="checkmark" size={isMobile ? 10 : 12} color="#fff" />}
+                                        {!!isChecked && isLocked && (
+                                            <Ionicons name="checkmark-circle" size={isMobile ? 18 : 14} color="#FFF" />
+                                        )}
+                                        {!!isChecked && !isLocked && (
+                                            <Ionicons name="time-outline" size={isMobile ? 18 : 14} color="#F59E0B" />
+                                        )}
+                                        {isLocked && (
+                                            <View style={styles.lockBadge}>
+                                                <Ionicons name="lock-closed" size={7} color={metric.color} />
+                                            </View>
+                                        )}
                                     </View>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    ))}
-                </View>
-
-                {/* Completion Bar */}
-                <View style={styles.completionContainer}>
-                    <View style={styles.progressBarBg}>
-                        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+                                </View>
+                            );
+                        })}
                     </View>
-                    <Text style={styles.completionText}>{progress}%</Text>
-                </View>
+                ))}
             </View>
         );
     };
@@ -271,37 +537,83 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                             <Text style={styles.statValue}>{monthlyStats?.tasks_completed || 0}</Text>
                             <Text style={styles.statLabel}>Tasks Done</Text>
                         </View>
-                        <View style={styles.statBox}>
-                            <Ionicons name="moon-outline" size={20} color="#F59E0B" />
-                            <Text style={styles.statValue}>{monthlyStats?.overtime_days || 0}</Text>
-                            <Text style={styles.statLabel}>Overtime</Text>
-                        </View>
+
                     </View>
                 </View>
 
                 {/* Daily Activity Log */}
                 <View style={styles.activitySection}>
-                    <Text style={styles.sectionTitle}>Daily Activity Log</Text>
-                    <Text style={styles.sectionSubtitle}>Track attendance, tasks, and overtime</Text>
+                    <View style={[styles.activityHeader, isMobile && styles.activityHeaderMobile]}>
+                        <View style={isMobile && styles.titleContainerMobile}>
+                            <Text style={styles.sectionTitle}>Daily Activity Log</Text>
+                            <Text style={styles.sectionSubtitle}>System-generated • Auto-recorded after admin approval</Text>
+                        </View>
+
+                        {/* Date Range Filter */}
+                        <View style={[styles.dateFilterContainer, isMobile && styles.dateFilterContainerMobile]}>
+                            <View style={[styles.dateInputGroup, isMobile && { width: '100%' }]}>
+                                <Text style={styles.dateLabel}>From:</Text>
+                                <TouchableOpacity
+                                    style={[styles.dateInput, isMobile && styles.dateInputMobile]}
+                                    onPress={() => setActiveDateField('from')}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                                        <Text style={{ fontSize: 12, color: '#111827' }}>{formatDateDisplay(fromDate)}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+
+                            {!isMobile && <Text style={styles.dateSeparator}>→</Text>}
+
+                            <View style={[styles.dateInputGroup, isMobile && { width: '100%' }]}>
+                                <Text style={styles.dateLabel}>To:</Text>
+                                <TouchableOpacity
+                                    style={[styles.dateInput, isMobile && styles.dateInputMobile]}
+                                    onPress={() => setActiveDateField('to')}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                                        <Text style={{ fontSize: 12, color: '#111827' }}>{formatDateDisplay(toDate)}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+
+                            <TouchableOpacity
+                                style={[styles.applyButton, isMobile && { width: '100%', alignItems: 'center', marginTop: 4 }]}
+                                onPress={() => fetchWorkerData()}
+                            >
+                                <Text style={styles.applyButtonText}>Apply</Text>
+                            </TouchableOpacity>
+
+                            {activeDateField && (
+                                <DateTimePicker
+                                    value={new Date(activeDateField === 'from' ? fromDate : toDate)}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={onDateChange}
+                                />
+                            )}
+                        </View>
+                    </View>
 
                     <View style={styles.activityDashboard}>
-                        {/* Fixed Left Column (Metrics) */}
-                        <View style={styles.leftColumn}>
-                            <View style={styles.leftHeaderSpacer} />
-                            {METRICS.map(metric => (
-                                <View key={metric.id} style={styles.metricLabelRow}>
-                                    <View style={[styles.iconBox, { backgroundColor: metric.color + '15' }]}>
-                                        <Ionicons name={metric.icon as any} size={16} color={metric.color} />
+                        {/* Fixed Left Column - HIDDEN ON MOBILE */}
+                        {!isMobile && (
+                            <View style={styles.leftColumn}>
+                                <View style={styles.leftHeaderSpacer} />
+                                {METRICS.map(metric => (
+                                    <View key={metric.id} style={styles.metricLabelRow}>
+                                        <View style={[styles.iconBox, { backgroundColor: metric.color + '15' }]}>
+                                            <Ionicons name={metric.icon as any} size={16} color={metric.color} />
+                                        </View>
+                                        <Text style={styles.metricText} numberOfLines={2}>
+                                            {metric.label}
+                                        </Text>
                                     </View>
-                                    <Text style={[styles.metricText, isMobile && styles.metricTextMobile]} numberOfLines={2}>
-                                        {metric.label}
-                                    </Text>
-                                </View>
-                            ))}
-                            <View style={styles.rowSpacer}>
-                                <Text style={styles.rowSpacerText}>Completion</Text>
+                                ))}
                             </View>
-                        </View>
+                        )}
 
                         {/* Scrollable Right Section (Weeks) */}
                         <ScrollView
@@ -309,37 +621,97 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                             showsHorizontalScrollIndicator={!isMobile}
                             pagingEnabled={isMobile}
                             onScroll={(e) => {
-                                if (isMobile) {
-                                    const offsetX = e.nativeEvent.contentOffset.x;
-                                    const index = Math.round(offsetX / (width - 140));
-                                    if (index !== currentWeekIndex && index >= 0 && index < WEEKS.length) {
-                                        setCurrentWeekIndex(index);
-                                    }
-                                }
+                                const x = e.nativeEvent.contentOffset.x;
+                                const index = Math.round(x / 300); // approx width
+                                setCurrentWeekIndex(index);
                             }}
                             scrollEventThrottle={16}
-                            contentContainerStyle={styles.scrollContent}
+                            contentContainerStyle={isMobile && { width: '100%' }}
                         >
-                            {WEEKS.map((week, index) => renderWeekColumn(week, index))}
+                            {calendarWeeks.map((week, index) => renderWeekColumn(week, index))}
                         </ScrollView>
                     </View>
                 </View>
 
-                {/* Productivity Trend */}
-                <View style={styles.trendSection}>
-                    <Text style={styles.sectionTitle}>Productivity Trend (Tasks Completed)</Text>
-                    <View style={styles.trendContainer}>
-                        {productivityTrend.map((item, index) => (
-                            <View key={index} style={styles.trendItem}>
-                                <Text style={styles.trendWeek}>{item.week}</Text>
-                                <View style={styles.trendBar}>
-                                    <View style={[styles.trendBarFill, { height: `${item.completionRate}%` }]} />
-                                </View>
-                                <Text style={styles.trendValue}>{item.completionRate}%</Text>
+
+                {graphDataV2 && (
+                    <View style={styles.trendSection}>
+                        <Text style={styles.trendTitle}>Activity Trend</Text>
+
+                        {!graphDataV2.hasActivity ? (
+                            <View style={{ padding: 24, alignItems: 'center' }}>
+                                <Text style={{ color: '#9CA3AF', fontStyle: 'italic', marginBottom: 8 }}>No approved activity for selected date range</Text>
                             </View>
-                        ))}
+                        ) : (
+                            <ScrollView
+                                horizontal={isMobile}
+                                pagingEnabled={isMobile}
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={!isMobile ? { flexDirection: 'column', gap: 24 } : {}}
+                            >
+                                {/* Attendance - Area Graph */}
+                                <View style={{ width: isMobile ? width - 56 : (width - 64), marginRight: isMobile ? 12 : 0 }}>
+                                    <Text style={styles.graphTitle}>Attendance Trend</Text>
+                                    <LineChart
+                                        data={{
+                                            labels: graphDataV2.labels,
+                                            datasets: [{ data: graphDataV2.attendanceData }]
+                                        }}
+                                        width={isMobile ? width - 56 : (width - 64)}
+                                        height={220}
+                                        yAxisSuffix="%"
+                                        chartConfig={{
+                                            backgroundColor: "#fff",
+                                            backgroundGradientFrom: "#fff",
+                                            backgroundGradientTo: "#fff",
+                                            decimalPlaces: 0,
+                                            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                                            labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                                            propsForDots: { r: "0" },
+                                            fillShadowGradientFrom: "#10B981",
+                                            fillShadowGradientTo: "#10B981",
+                                            fillShadowGradientFromOpacity: 0.3,
+                                            fillShadowGradientToOpacity: 0.05,
+                                        }}
+                                        bezier
+                                        style={{ borderRadius: 12 }}
+                                        withInnerLines={false}
+                                        withOuterLines={false}
+                                        fromZero
+                                        segments={2}
+                                    />
+                                </View>
+
+                                {/* Tasks - Grouped Bars */}
+                                <View style={{ width: isMobile ? width - 56 : (width - 64), marginLeft: isMobile ? 4 : 0 }}>
+                                    <Text style={[styles.graphTitle, { color: '#3B82F6' }]}>Task Assignment vs Completion</Text>
+
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 4 }}>
+                                        <View style={{ width: 12, height: 12, backgroundColor: '#93C5FD', marginRight: 4, borderRadius: 2 }} />
+                                        <Text style={{ fontSize: 12, color: '#4B5563', marginRight: 16 }}>Pending</Text>
+                                        <View style={{ width: 12, height: 12, backgroundColor: '#1E40AF', marginRight: 4, borderRadius: 2 }} />
+                                        <Text style={{ fontSize: 12, color: '#4B5563' }}>Done</Text>
+                                    </View>
+
+                                    <BarChart
+                                        data={graphDataV2.groupedBarData}
+                                        barWidth={18}
+                                        spacing={24}
+                                        roundedTop
+                                        roundedBottom
+                                        hideRules
+                                        xAxisThickness={0}
+                                        yAxisThickness={0}
+                                        yAxisTextStyle={{ color: '#9CA3AF' }}
+                                        noOfSections={3}
+                                        height={220}
+                                        width={isMobile ? width - 56 : (width - 64)}
+                                    />
+                                </View>
+                            </ScrollView>
+                        )}
                     </View>
-                </View>
+                )}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -567,54 +939,12 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#E5E7EB',
-        padding: 8,
+        padding: 16,
+        overflow: 'hidden',
     },
     weekCardMobile: {
-        width: 220,
-    },
-    weekHeader: {
-        height: 60,
-        marginBottom: 8,
-        justifyContent: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    weekTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#6B7280',
-        marginBottom: 4,
-        textAlign: 'center',
-    },
-    weekTitleActive: {
-        color: '#111827',
-        fontWeight: '700',
-    },
-    weekHeaderDays: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 4,
-    },
-    dayText: {
-        fontSize: 10,
-        color: '#9CA3AF',
-        width: 32,
-        textAlign: 'center',
-    },
-    dayTextMobile: {
-        fontSize: 9,
-        width: 26,
-    },
-    gridContainer: {
-        marginTop: 8,
-    },
-    gridRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        height: 48,
-        alignItems: 'center',
-        marginBottom: 8,
-        paddingHorizontal: 4,
+        width: '100%',
+        marginRight: 0, // No margin on mobile
     },
     checkboxContainer: {
         width: 32,
@@ -639,6 +969,203 @@ const styles = StyleSheet.create({
         width: 18,
         height: 18,
         borderRadius: 4,
+    },
+
+    // ===== NEW GRID-BASED ACTIVITY LOG STYLES =====
+    weekTitleContainer: {
+        paddingVertical: 12,
+        borderBottomWidth: 1.5,
+        borderBottomColor: '#E5E7EB',
+        marginBottom: 12,
+    },
+    weekTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#111827',
+        textAlign: 'center',
+    },
+
+    // Day Header Row - 7 Equal Columns
+    dayHeaderRow: {
+        flexDirection: 'row',
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        marginBottom: 8,
+    },
+    dayHeaderCell: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 4,
+    },
+    dayLetter: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    dayLetterMobile: {
+        fontSize: 9,
+        fontWeight: '700',
+        color: '#9CA3AF',
+        marginBottom: 2,
+    },
+    dayDateMobile: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    dayMonthMobile: {
+        fontSize: 8,
+        fontWeight: '600',
+        color: '#6B7280',
+        textTransform: 'uppercase',
+    },
+
+    // Metric Row Container - Holds label + 7 checkboxes
+    metricRowContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+        minHeight: 36,
+    },
+    metricLabelCell: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: 70,
+        marginRight: 8,
+    },
+    metricIconBadge: {
+        width: 20,
+        height: 20,
+        borderRadius: 5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 4,
+    },
+    metricLabelTextCompact: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: '#4B5563',
+        flex: 1,
+    },
+
+    // Checkbox Cell Container - Each day column
+    checkboxCellContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4, // 8px total gap (4px each side)
+        paddingVertical: 6, // 12px total gap (6px top + 6px bottom)
+    },
+    statusBox: {
+        width: 28,
+        height: 28,
+        borderRadius: 7,
+        borderWidth: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    statusBoxMobile: {
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+    },
+    dateInBox: {
+        position: 'absolute',
+        bottom: 2,
+        fontSize: 8,
+        fontWeight: '700',
+        color: '#6B7280',
+    },
+    lockBadge: {
+        position: 'absolute',
+        bottom: -3,
+        right: -3,
+        backgroundColor: '#FFF',
+        borderRadius: 8,
+        width: 14,
+        height: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    // Date Filter Styles
+    activityHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    activityHeaderMobile: {
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 12,
+    },
+    titleContainerMobile: {
+        marginBottom: 4,
+    },
+    dateFilterContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#F9FAFB',
+        padding: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    dateFilterContainerMobile: {
+        width: '100%',
+        flexDirection: 'column',
+        gap: 8,
+    },
+    dateText: {
+        fontSize: 12,
+        color: '#111827',
+        fontWeight: '500',
+    },
+    dateInputGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    dateLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    dateInput: {
+        backgroundColor: '#FFF',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: 6,
+        padding: 6,
+        fontSize: 11,
+        minWidth: 100,
+        color: '#111827',
+    },
+    dateInputMobile: {
+        minWidth: 80,
+        flex: 1,
+    },
+
+    dateSeparator: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        marginHorizontal: 4,
+    },
+    applyButton: {
+        backgroundColor: '#059669',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 6,
+    },
+    applyButtonText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '700',
     },
     completionContainer: {
         flexDirection: 'row',
@@ -667,6 +1194,12 @@ const styles = StyleSheet.create({
         width: 32,
         textAlign: 'right',
     },
+    trendTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 16,
+    },
     trendSection: {
         backgroundColor: '#fff',
         borderRadius: 12,
@@ -680,39 +1213,11 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 2,
     },
-    trendContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'flex-end',
-        height: 120,
-        marginTop: 16,
-    },
-    trendItem: {
-        alignItems: 'center',
-        gap: 8,
-    },
-    trendWeek: {
-        fontSize: 12,
+    graphTitle: {
+        fontSize: 13,
         fontWeight: '600',
-        color: '#6B7280',
-    },
-    trendBar: {
-        width: 40,
-        height: 80,
-        backgroundColor: '#E5E7EB',
-        borderRadius: 4,
-        justifyContent: 'flex-end',
-        overflow: 'hidden',
-    },
-    trendBarFill: {
-        width: '100%',
-        backgroundColor: '#10B981',
-        borderRadius: 4,
-    },
-    trendValue: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#374151',
+        color: '#059669',
+        marginBottom: 8,
     },
 });
 

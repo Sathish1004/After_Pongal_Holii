@@ -7,6 +7,7 @@ import ImageViewerModal from '../components/ImageViewerModal';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio, Video, ResizeMode } from 'expo-av';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/api';
@@ -222,6 +223,17 @@ const StageProgressScreen = ({ route, navigation }: any) => {
     const { width } = useWindowDimensions();
     const isSmallScreen = width < 380;
 
+    // Video Recording State
+    const [permission, requestPermission] = useCameraPermissions();
+    const [videoModalVisible, setVideoModalVisible] = useState(false);
+    const [videoUri, setVideoUri] = useState<string | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
+    const [videoTimer, setVideoTimer] = useState(0);
+    const [videoNote, setVideoNote] = useState('');
+    const cameraRef = useRef<CameraView>(null);
+    const videoRecordingInterval = useRef<NodeJS.Timeout | null>(null);
+
     const [confirmModal, setConfirmModal] = useState({
         visible: false,
         title: '',
@@ -263,9 +275,7 @@ const StageProgressScreen = ({ route, navigation }: any) => {
     const [mediaType, setMediaType] = useState<'image' | 'video' | 'audio' | null>(null);
     const [recording, setRecording] = useState<Audio.Recording | undefined>(undefined);
     const [cameraVisible, setCameraVisible] = useState(false);
-    // Video state removed
-    const [cameraRef, setCameraRef] = useState<any>(null); // Kept if needed or remove entirely? Remove entirely.
-    // Actually, remove all lines 33-36
+
 
 
     // Update Modal
@@ -827,6 +837,63 @@ const StageProgressScreen = ({ route, navigation }: any) => {
 
 
 
+
+    // Video Recording Functions
+    const startVideoRecording = async () => {
+        if (cameraRef.current) {
+            try {
+                if (!permission?.granted) {
+                    const status = await requestPermission();
+                    if (!status.granted) {
+                        Alert.alert("Permission", "Camera permission is required to record video.");
+                        return;
+                    }
+                }
+
+                setIsRecording(true);
+                setVideoTimer(0);
+                videoRecordingInterval.current = setInterval(() => {
+                    setVideoTimer(prev => {
+                        if (prev >= 30) {
+                            stopVideoRecording();
+                            return 30;
+                        }
+                        return prev + 1;
+                    });
+                }, 1000);
+
+                const video = await cameraRef.current.recordAsync({
+                    maxDuration: 30, // 30 seconds limit
+                });
+
+                if (video) {
+                    setVideoUri(video.uri);
+                    setVideoModalVisible(false);
+                    setMediaUri(video.uri);
+                    setMediaType('video');
+                    setImageUploadModalVisible(true);
+                }
+            } catch (error) {
+                console.error("Video recording error", error);
+                setIsRecording(false);
+                if (videoRecordingInterval.current) clearInterval(videoRecordingInterval.current);
+            }
+        }
+    };
+
+    const stopVideoRecording = () => {
+        if (cameraRef.current && isRecording) {
+            cameraRef.current.stopRecording();
+            setIsRecording(false);
+            if (videoRecordingInterval.current) clearInterval(videoRecordingInterval.current);
+        }
+    };
+
+    const toggleCameraFacing = () => {
+        setCameraFacing(current => (current === 'back' ? 'front' : 'back'));
+    };
+
+
     const handleSendMessage = async (customContent?: string) => {
         console.log('[StageProgress] handleSendMessage called', { customContent, messageText });
         const contentToSend = customContent !== undefined ? customContent : messageText;
@@ -1324,15 +1391,7 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                             style={{ flexShrink: 1 }} // Allow it to take available space but shrink if needed
                         >
                             <View style={styles.inputArea}>
-                                {!isAdmin && (
-                                    <TouchableOpacity
-                                        style={styles.addProgressButton}
-                                        onPress={() => setUpdateModalVisible(true)}
-                                    >
-                                        <Ionicons name="add" size={20} color="#FFF" />
-                                        <Text style={styles.addProgressText}>Add Progress</Text>
-                                    </TouchableOpacity>
-                                )}
+
 
                                 {/* Message Input or Recording Visualizer */}
                                 {recording ? (
@@ -1363,6 +1422,9 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                                             onChangeText={setMessageText}
                                             multiline
                                         />
+                                        <TouchableOpacity onPress={() => setVideoModalVisible(true)}>
+                                            <Ionicons name="videocam-outline" size={24} color="#6B7280" style={{ marginRight: 8 }} />
+                                        </TouchableOpacity>
                                         <TouchableOpacity onPress={pickImage}>
                                             <Ionicons name="image-outline" size={20} color="#6B7280" style={{ marginRight: 8 }} />
                                         </TouchableOpacity>
@@ -1476,6 +1538,16 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                                     />
                                 )}
 
+                                {mediaType === 'video' && (
+                                    <Video
+                                        source={{ uri: mediaUri }}
+                                        style={{ width: '100%', height: '100%' }}
+                                        useNativeControls
+                                        resizeMode={ResizeMode.CONTAIN}
+                                        isLooping
+                                    />
+                                )}
+
                                 {mediaType === 'audio' && (
                                     <View style={{ gap: 8, alignItems: 'center' }}>
                                         <TouchableOpacity
@@ -1579,6 +1651,59 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                         </View>
                     </View>
                 </View>
+            </Modal>
+
+            {/* Video Recording Modal */}
+            <Modal
+                visible={videoModalVisible}
+                animationType="slide"
+                onRequestClose={() => setVideoModalVisible(false)}
+            >
+                <SafeAreaView style={{ flex: 1, backgroundColor: 'black' }}>
+                    <CameraView
+                        ref={cameraRef}
+                        style={{ flex: 1 }}
+                        facing={cameraFacing}
+                        mode="video"
+                    >
+                        <View style={{ flex: 1, justifyContent: 'space-between', padding: 20 }}>
+                            {/* Top Controls */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+                                <TouchableOpacity onPress={() => setVideoModalVisible(false)} disabled={isRecording}>
+                                    <Ionicons name="close" size={32} color="white" style={{ opacity: isRecording ? 0.5 : 1 }} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={toggleCameraFacing} disabled={isRecording}>
+                                    <Ionicons name="camera-reverse" size={32} color="white" style={{ opacity: isRecording ? 0.5 : 1 }} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Bottom Controls */}
+                            <View style={{ alignItems: 'center', marginBottom: 40 }}>
+                                <Text style={{ color: 'white', fontSize: 20, marginBottom: 20, fontWeight: 'bold' }}>
+                                    {isRecording ? `00:${videoTimer < 10 ? '0' : ''}${videoTimer}` : 'Tap to Record'}
+                                </Text>
+
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 40 }}>
+                                    <TouchableOpacity
+                                        onPress={isRecording ? stopVideoRecording : startVideoRecording}
+                                        style={{
+                                            width: 80,
+                                            height: 80,
+                                            borderRadius: 40,
+                                            backgroundColor: isRecording ? '#EF4444' : 'white',
+                                            borderWidth: 4,
+                                            borderColor: 'rgba(255,255,255,0.5)',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        {isRecording && <View style={{ width: 24, height: 24, backgroundColor: 'white', borderRadius: 4 }} />}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </CameraView>
+                </SafeAreaView>
             </Modal>
 
         </SafeAreaView >
@@ -2002,5 +2127,4 @@ const styles = StyleSheet.create({
         marginTop: 8
     }
 });
-
 export default StageProgressScreen;

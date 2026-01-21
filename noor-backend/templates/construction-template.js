@@ -1,63 +1,213 @@
 /**
  * Standard Construction Project Template
- * Based on the User's Request for 14 standardized phases per floor
- * 
- * Default Floors:
- * 1. Ground Floor
- * 2. First Floor
- * 
- * Each floor gets the same 14 phases.
+ * Fixed 14-stage lifecycle with detailed sub-tasks.
  */
 
-const STANDARD_PHASES = [
-    "Site Preparation",
-    "Foundation Work",
-    "Column Construction",
-    "Beam Construction",
-    "Slab Work",
-    "Brick Work",
-    "Electrical Conduiting",
-    "Plumbing Work",
-    "Plastering",
-    "Flooring",
-    "Door & Window Fixing",
-    "Painting",
-    "Finishing Works",
-    "Final Inspection"
-];
-
-const BASEMENT_PHASES = [
-    "Site Preparation",
-    "Excavation",
-    "Footing Construction",
-    "Foundation Work",
-    "Column Construction",
-    "Beam Construction",
-    "Slab Work",
-    "Brick Work",
-    "Electrical Conduiting",
-    "Plumbing Work",
-    "Plastering",
-    "Flooring",
-    "Waterproofing",
-    "Final Inspection"
-];
-
-const generateFloorPhases = (floorName, floorNumber, startSerial, phasesList = STANDARD_PHASES) => {
-    return phasesList.map((name, index) => ({
-        serialNumber: startSerial + index, // Unique serial/order number
-        floorNumber: floorNumber,
-        floorName: floorName,
-        stageName: name,
-        tasks: [] // User didn't specify default tasks, keeping empty or minimal
-    }));
-};
-
 const CONSTRUCTION_TEMPLATE = [
-    ...generateFloorPhases("Basement", -1, 1, BASEMENT_PHASES),
-    ...generateFloorPhases("Ground Floor", 0, 15, STANDARD_PHASES),
-    ...generateFloorPhases("First Floor", 1, 29, STANDARD_PHASES)
+    {
+        serialNumber: 1,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Initial Planning & Site Preparation",
+        tasks: [
+            "Site plan",
+            "Architectural drawings",
+            "Elevation",
+            "Site pooja"
+        ]
+    },
+    {
+        serialNumber: 2,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Basement / Foundation Construction",
+        tasks: [
+            "Site clearance",
+            "Marking",
+            "Excavation",
+            "PCC",
+            "Bar bending",
+            "Pillar marking and placing",
+            "Footing concrete",
+            "Earth pit column concrete below GL",
+            "Earth pit soil filling and soil tightening",
+            "Plinth level marking",
+            "Plinth beam bar bending and shuttering",
+            "Concreting and de-shuttering",
+            "Basement level brick work – inner plastering",
+            "Gravel filling",
+            "Soil consolidation",
+            "DPC concrete and PCC",
+            "Water tank and septic tank"
+        ]
+    },
+    {
+        serialNumber: 3,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Lintel Level Construction",
+        tasks: [
+            "Lintel level marking",
+            "Column shoe marking",
+            "Rod lapping (if needed)",
+            "Column box fixing and concreting",
+            "Sill level brick work (3’)",
+            "Sill concrete",
+            "Lintel level brick work",
+            "Lintel level shuttering",
+            "Bar bending and concreting"
+        ]
+    },
+    {
+        serialNumber: 4,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Roof Level Construction",
+        tasks: [
+            "Roof level marking",
+            "Rod lapping (if needed)",
+            "Brick work",
+            "Roof centering",
+            "Bar bending",
+            "Electrical pipeline fixing",
+            "Concreting",
+            "Concrete de-shuttering",
+            "Electrical pipeline gady work"
+        ]
+    },
+    {
+        serialNumber: 5,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Wall & Finishing Works",
+        tasks: [
+            "Parapet wall brick work and sill concrete",
+            "Doors and windows frame fixing",
+            "Inner plastering",
+            "Kitchen tabletop concreting",
+            "Outer plastering",
+            "Rooftop surki concrete",
+            "Elevation work"
+        ]
+    },
+    {
+        serialNumber: 6,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Compound Wall Construction",
+        tasks: [
+            "Compound wall basement",
+            "Brick work",
+            "Plastering"
+        ]
+    },
+    {
+        serialNumber: 7,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Electrical & Plumbing Rough-In",
+        tasks: [
+            "Electrical wiring",
+            "Plumbing line (inner & outer)"
+        ]
+    },
+    {
+        serialNumber: 8,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Plumbing Finishes",
+        tasks: [
+            "Plumbing finishing work",
+            "Outer plumbing pipeline",
+            "Inner plumbing pipeline",
+            "Kitchen tap fixing",
+            "Bathroom fittings",
+            "Outer area fittings",
+            "Overhead Water tank fixing and connection"
+        ]
+    },
+    {
+        serialNumber: 9,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Electrical Finishes",
+        tasks: [
+            "Electrical finishing work",
+            "Switch box fixing",
+            "MCB box",
+            "Light fittings"
+        ]
+    },
+    {
+        serialNumber: 10,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Painting",
+        tasks: [
+            "Inner painting work",
+            "Putty (2–3 coats)",
+            "Primer",
+            "Emulsion",
+            "Grill painting",
+            "Main door polish",
+            "Windows and doors polishing or painting",
+            "Outer painting work",
+            "Elevation painting",
+            "MS gate painting",
+            "Additional laser cut / elevation element painting"
+        ]
+    },
+    {
+        serialNumber: 11,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Tiles Work",
+        tasks: [
+            "Bathroom wall & floor tiles",
+            "Main floor tiles",
+            "Kitchen wall tiles",
+            "Elevation wall tiles",
+            "Parking tiles"
+        ]
+    },
+    {
+        serialNumber: 12,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Granite & Staircase Work",
+        tasks: [
+            "Kitchen tabletop granite",
+            "Front step granite",
+            "Inner staircase",
+            "Paneling work"
+        ]
+    },
+    {
+        serialNumber: 13,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Carpentry Finishes",
+        tasks: [
+            "Carpenter finishing work",
+            "Main door",
+            "Bedroom doors",
+            "Bathroom doors",
+            "Windows frame & shutter",
+            "All glass fittings"
+        ]
+    },
+    {
+        serialNumber: 14,
+        floorNumber: 0,
+        floorName: "Main Project",
+        stageName: "Optional Extras",
+        tasks: [
+            "Elevation grill / laser work",
+            "Main gate work",
+            "Outer stair handrails",
+            "MS / SS works"
+        ]
+    }
 ];
 
 module.exports = CONSTRUCTION_TEMPLATE;
-
