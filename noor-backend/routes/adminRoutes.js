@@ -16,6 +16,9 @@ router.get('/approvals', verifyToken, isAdmin, adminController.getPendingApprova
 router.get('/completed-tasks', verifyToken, isAdmin, adminController.getCompletedTasksStats);
 router.get('/completed-tasks-list', verifyToken, isAdmin, adminController.getCompletedTasks);
 
+// Task Management
+router.post('/tasks', verifyToken, isAdmin, adminController.createTask);
+
 // Milestone Routes
 router.post('/milestones', verifyToken, isAdmin, milestoneController.createMilestone);
 router.get('/sites/:siteId/milestones', verifyToken, isAdmin, milestoneController.getMilestonesBySite);

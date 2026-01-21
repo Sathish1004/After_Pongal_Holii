@@ -124,10 +124,14 @@ exports.sendTaskMessage = async (req, res) => {
 
         console.log(`[TaskController] sendTaskMessage: taskId=${taskId}, senderId=${senderId}, content=${content}`);
 
+        // Get site_id for the task to ensure file sync
+        const [taskData] = await db.query('SELECT site_id FROM tasks WHERE id = ?', [taskId]);
+        const siteId = taskData.length > 0 ? taskData[0].site_id : null;
+
         await db.query(`
-            INSERT INTO task_messages (task_id, sender_id, type, content, media_url)
-            VALUES (?, ?, ?, ?, ?)
-        `, [taskId, senderId, type || 'text', content, mediaUrl || null]);
+            INSERT INTO task_messages (task_id, site_id, sender_id, type, content, media_url, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+        `, [taskId, siteId, senderId, type || 'text', content, mediaUrl || null]);
 
         res.status(201).json({ message: 'Message sent' });
     } catch (error) {

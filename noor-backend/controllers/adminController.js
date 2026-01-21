@@ -297,3 +297,30 @@ exports.getCompletedTasks = async (req, res) => {
     }
 };
 
+
+// Create a new Task
+exports.createTask = async (req, res) => {
+    try {
+        const { siteId, phaseId, name, orderIndex } = req.body;
+
+        if (!siteId || !phaseId || !name) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        // Insert new task.
+        // Status defaults to 'pending' to match dashboard stats logic (or use 'Not Started' if preferred, but existing filters look for 'pending')
+        const [result] = await db.query(`
+            INSERT INTO tasks (site_id, phase_id, name, status, created_at, updated_at, order_index)
+            VALUES (?, ?, ?, 'pending', NOW(), NOW(), ?)
+        `, [siteId, phaseId, name, orderIndex || 0]);
+
+        res.status(201).json({
+            message: "Task created successfully",
+            taskId: result.insertId
+        });
+
+    } catch (error) {
+        console.error("Error creating task:", error);
+        res.status(500).json({ message: "Failed to create task" });
+    }
+};

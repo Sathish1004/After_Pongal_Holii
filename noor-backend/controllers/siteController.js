@@ -336,7 +336,7 @@ exports.addPhase = async (req, res) => {
         }
 
         // Insert new phase
-        await db.query(
+        const [result] = await db.query(
             'INSERT INTO phases (site_id, name, order_num, budget, floor_number, floor_name) VALUES (?, ?, ?, ?, ?, ?)',
             [siteId, name, sNumber, budget || 0, fNumber, fName]
         );
@@ -344,7 +344,7 @@ exports.addPhase = async (req, res) => {
         // Re-index internal order just to keep it clean
         await reindexPhases(siteId);
 
-        res.status(201).json({ message: 'Stage added successfully' });
+        res.status(201).json({ message: 'Stage added successfully', phaseId: result.insertId });
     } catch (error) {
         console.error('Error adding phase:', error);
         res.status(500).json({ message: 'Error adding phase' });
