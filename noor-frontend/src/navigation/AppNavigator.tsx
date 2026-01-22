@@ -1,4 +1,5 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext } from "react";
+import { View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthContext } from "../context/AuthContext";
@@ -20,6 +21,7 @@ import EmployeeProfileScreen from "../screens/EmployeeProfileScreen";
 import CompletedTasksScreen from "../screens/CompletedTasksScreen";
 import MilestoneDetailScreen from "../screens/MilestoneDetailScreen";
 import CompletedProjectsScreen from "../screens/CompletedProjectsScreen";
+import AdminProfileScreen from "../screens/AdminProfileScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -28,7 +30,11 @@ const AppNavigator: React.FC = () => {
 
   // Show loading state while checking authentication
   if (isLoading) {
-    return <HomeScreen />;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+        <ActivityIndicator size="large" color="#8B0000" />
+      </View>
+    );
   }
 
   return (
@@ -81,6 +87,7 @@ const AppNavigator: React.FC = () => {
               name="EmployeeProjectDetails"
               component={EmployeeProjectDetailsScreen}
             />
+            <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
           </>
         ) : (
           // Employee logged in

@@ -266,13 +266,20 @@ exports.getProductivityTrend = async (req, res) => {
     }
 };
 
-// Get worker details with basic stats
+// Get worker details with detailed performance stats
 exports.getWorkerDetails = async (req, res) => {
     try {
         const { workerId } = req.params;
+        const { startDate, endDate } = req.query;
 
+        // Default to current month if no dates provided
+        const now = new Date();
+        const start = startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const end = endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        // 1. Fetch Worker Profile
         const workerQuery = `
-            SELECT id, name, email, phone, role, status
+            SELECT id, name, email, phone, role, status, profile_image
             FROM employees
             WHERE id = ?
         `;
@@ -285,26 +292,136 @@ exports.getWorkerDetails = async (req, res) => {
             });
         }
 
-        // Get current month stats
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
+        // 2. Fetch Detailed Task Metrics for the range
+        // Logic:
+        // - Assigned: Task created/assigned in range
+        // - Completed: Task assigned in range AND status='completed' (Or should it be completed in range? "Performance" usually tracks the cohort of assigned tasks)
+        // - "A task is Good/On Time if completed on or before due date"
+        // - "Late if completed after due date"
+        // - "Overdue if due date crossed and not completed"
+        // - "Ongoing - Needs Changes if: Proof uploaded / Admin requested changes" (status: waiting_for_approval, change_required)
 
-        const statsQuery = `
+        // We filter tasks based on CREATED_AT (Assigned Date) falling in the range to establish the "Assigned Tasks" cohort.
+        // This is standard for "Completion Rate of Assigned Tasks".
+
+        // Broaden range to include any activity in the window for Charting purposes
+        const tasksQuery = `
             SELECT 
-                COUNT(CASE WHEN metric_type = 'attendance' AND is_checked = 1 THEN 1 END) as attendance_days,
-                COUNT(CASE WHEN metric_type = 'tasks_completed' AND is_checked = 1 THEN 1 END) as tasks_completed,
-                COUNT(CASE WHEN metric_type = 'overtime' AND is_checked = 1 THEN 1 END) as overtime_days
-            FROM worker_daily_activity
-            WHERE worker_id = ?
-            AND MONTH(activity_date) = ?
-            AND YEAR(activity_date) = ?
+                t.id,
+                t.status,
+                t.created_at,
+                t.due_date,
+                t.completed_at,
+                t.entered_at
+            FROM task_assignments ta
+            JOIN tasks t ON ta.task_id = t.id
+            WHERE ta.employee_id = ?
+            AND (
+                DATE(t.created_at) BETWEEN ? AND ? 
+                OR DATE(t.completed_at) BETWEEN ? AND ?
+                OR DATE(t.due_date) BETWEEN ? AND ?
+            )
         `;
-        const [stats] = await db.query(statsQuery, [workerId, currentMonth, currentYear]);
+
+        const [tasks] = await db.query(tasksQuery, [workerId, start, end, start, end, start, end]);
+
+        let assigned = 0;
+        let completed = 0;
+        let overdue = 0;
+        let onTime = 0;
+        let late = 0;
+        let ongoing = 0;
+
+        const currentDate = new Date();
+
+        tasks.forEach(task => {
+            assigned++;
+
+            const isCompleted = task.status === 'completed';
+            const dueDate = task.due_date ? new Date(task.due_date) : null;
+            const completedAt = task.completed_at ? new Date(task.completed_at) : null;
+
+            // Normalize dates for comparison (ignore time)
+            if (dueDate) dueDate.setHours(23, 59, 59, 999);
+
+            if (isCompleted) {
+                completed++;
+                if (dueDate && completedAt) {
+                    if (completedAt <= dueDate) {
+                        onTime++;
+                    } else {
+                        late++;
+                    }
+                } else {
+                    // If no due date, count as onTime or just completed? 
+                    // Assumption: No due date = On Time if completed.
+                    onTime++;
+                }
+            } else {
+                // Not completed check
+                if (dueDate && currentDate > dueDate) {
+                    overdue++;
+                }
+
+                if (task.status === 'waiting_for_approval' || task.status === 'change_required' || task.status === 'in_progress') {
+                    // Logic: "Ongoing – Needs Changes if Proof uploaded / Admin requested changes"
+                    // in_progress might be just started. 
+                    // waiting_for_approval = proof uploaded. 
+                    // change_required = admin requested changes.
+                    ongoing++;
+                }
+            }
+        });
+
+        const performanceScore = assigned > 0
+            ? Math.round((onTime / assigned) * 100)
+            : 0;
+
+        // Performance Percentage: (onTime / assigned) * 100
+        const performancePercentage = assigned > 0
+            ? Math.round((onTime / assigned) * 100)
+            : 0;
+
+        // Performance Label Rules
+        let performanceLabel = 'Poor';
+        if (performancePercentage >= 80) performanceLabel = 'Good';
+        else if (performancePercentage >= 50) performanceLabel = 'Average';
+
+        const breakdown = { onTime, late, overdue, ongoing };
+
+        // Fetch Attendance (for charts/legacy)
+        const attendanceQuery = `
+            SELECT COUNT(*) as count 
+            FROM worker_daily_activity 
+            WHERE worker_id = ? 
+            AND metric_type = 'attendance' 
+            AND is_checked = 1
+            AND activity_date BETWEEN ? AND ?
+        `;
+        const [attendance] = await db.query(attendanceQuery, [workerId, start, end]);
+
+        const stats = {
+            attendance_days: attendance[0].count,
+            performance_breakdown: breakdown,
+            task_breakdown: breakdown
+        };
+
+        // Construct Unified Worker Object
+        const workerData = {
+            ...worker[0],
+            tasksAssigned: assigned,
+            tasksCompleted: completed,
+            tasksOverdue: overdue,
+            performancePercentage: performancePercentage,
+            performanceLabel: performanceLabel
+        };
 
         res.json({
             success: true,
-            worker: worker[0],
-            monthlyStats: stats[0]
+            worker: workerData, // Unified object
+            monthlyStats: stats, // Partial stats for charts
+            tasks: tasks,
+            params: { startDate: start, endDate: end }
         });
     } catch (error) {
         console.error('Error fetching worker details:', error);

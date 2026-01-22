@@ -44,32 +44,18 @@
 import axios from "axios";
 import { Platform } from "react-native";
 
-// ✅ PRODUCTION BACKEND URL (AWS)
-// const PROD_API_URL = "https://noorclient.prolync.in/api";
-const PROD_API_URL = "http://localhost:5000/api";
-
-
-// ✅ Optional: local dev URL (ONLY for local testing)
-const DEV_API_URL = "http://localhost:5000";
-
-// ✅ Decide API based on environment
-const getApiUrl = () => {
-    // When running locally in dev mode
-    // if (__DEV__) {
-    //     if (Platform.OS === "web") {
-    //         return DEV_API_URL;
-    //     }
-    //     // Android emulator local testing
-    //     if (Platform.OS === "android") {
-    //         return "http://10.0.2.2:5000/api";
-    //     }
-    // }
-
-    // ✅ Production (APK / Netlify / real devices)
-    return PROD_API_URL;
+// ✅ Determine Base URL based on Platform
+// Android Emulator uses 10.0.2.2 to access host localhost.
+// iOS Simulator uses localhost.
+// Web uses localhost.
+const getBaseUrl = () => {
+    if (Platform.OS === 'android') {
+        return "http://10.0.2.2:5000/api";
+    }
+    return "http://localhost:5000/api";
 };
 
-export const API_URL = getApiUrl();
+export const API_URL = getBaseUrl();
 export const BASE_URL = API_URL.replace(/\/api$/, "");
 
 const api = axios.create({
