@@ -1086,64 +1086,7 @@ const generateProjectReportHTML = (
           </div>
         </div>
 
-        <!-- 2. STATUS SUMMARY (Mini Dashboard) -->
-        <div class="section">
-          <div class="section-header">
-            <div class="section-icon">📊</div>
-            <div class="section-title">Project Status Report</div>
-          </div>
-          
-          <div class="status-summary">
-            <div class="status-metric">
-              <div class="metric-value">${stats.progress}%</div>
-              <div class="metric-label">Overall Progress</div>
-            </div>
-             <div class="status-metric">
-              <div class="metric-value">${stats.timelineProgress}%</div>
-              <div class="metric-label">Timeline Progress</div>
-            </div>
-            <div class="status-metric">
-              <div class="metric-value">${phases.length}</div>
-              <div class="metric-label">Total Stages</div>
-            </div>
-          </div>
 
-          <div class="task-stats">
-             <div class="task-stat-box">
-              <div class="ts-value">${stats.totalTasks}</div>
-              <div class="ts-label">Total Tasks</div>
-            </div>
-            <div class="task-stat-box ts-completed">
-              <div class="ts-value">${stats.completedTasks}</div>
-              <div class="ts-label">Completed</div>
-            </div>
-            <div class="task-stat-box ts-pending">
-              <div class="ts-value">${stats.pendingTasks}</div>
-              <div class="ts-label">Pending</div>
-            </div>
-          </div>
-          
-          <!-- Allocation Summary -->
-          <div style="margin-top: 20px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px;">
-             <div style="font-size: 14px; color: #8B0000; font-weight: bold; margin-bottom: 15px; text-transform: uppercase;">
-                Allocation Summary
-             </div>
-             <div style="display: flex; justify-content: space-between; text-align: center;">
-                <div style="flex: 1;">
-                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">TOTAL BUDGET</div>
-                    <div style="font-size: 16px; font-weight: bold; color: #111827;">${stats.budget}</div>
-                </div>
-                 <div style="flex: 1; border-left: 1px solid #f3f4f6;">
-                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">ALLOCATED</div>
-                    <div style="font-size: 16px; font-weight: bold; color: #166534;">${stats.allocated}</div>
-                </div>
-                 <div style="flex: 1; border-left: 1px solid #f3f4f6;">
-                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">REMAINING</div>
-                    <div style="font-size: 16px; font-weight: bold; color: #B91C1C;">${stats.remaining}</div>
-                </div>
-             </div>
-          </div>
-        </div>
 
         <div class="footer">
           Generated automatically by Noor Construction App • Reliable & Transparent
@@ -2051,8 +1994,31 @@ const AdminDashboardScreen = () => {
   const fetchDashboardStats = async () => {
     setStatsLoading(true);
     try {
+      // Fetch basic stats
       const response = await api.get("/admin/dashboard-stats");
-      setDashboardStats(response.data);
+      
+      // Also fetch all projects to calculate completed count properly
+      const projectsRes = await api.get("/sites");
+      const allProjectsData = Array.isArray(projectsRes.data) ? projectsRes.data : projectsRes.data?.sites || [];
+      
+      // Count completed projects: status='completed' OR progress=100
+      const completedCount = allProjectsData.filter((p: any) => {
+        const status = (p.status || '').toLowerCase();
+        const progress = parseInt(p.progress) || 0;
+        return status === 'completed' || progress === 100;
+      }).length;
+      
+      // Update the response with accurate completed count
+      const updatedStats = {
+        ...response.data,
+        projects: {
+          ...response.data.projects,
+          completed: completedCount,
+          total: allProjectsData.length,
+        },
+      };
+      
+      setDashboardStats(updatedStats);
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
       // Fallback or Toast?
@@ -4767,14 +4733,29 @@ Project Team`;
                     style={styles.metricCard}
                     onPress={() => setDashboardSearchQuery("")}
                   >
-                    <Text style={styles.metricLabel}>Total Projects</Text>
-                    <Text style={styles.metricValue}>
-                      {dashboardStats.projects.total}
-                    </Text>
-                    <View style={styles.metricSubRow}>
-                      <Text style={styles.metricSubText}>
-                        {dashboardStats.projects.completed} Completed
-                      </Text>
+                    <View style={styles.totalProjectsHeader}>
+                      <View>
+                        <Text style={styles.metricLabel}>Total Projects</Text>
+                        <Text style={styles.metricValue}>
+                          {dashboardStats.projects.total}
+                        </Text>
+                        <View style={styles.metricSubRow}>
+                          <Text style={styles.metricSubText}>
+                            {dashboardStats.projects.completed} Completed
+                          </Text>
+                        </View>
+                      </View>
+                      {dashboardStats.projects.completed > 0 && (
+                        <TouchableOpacity
+                          onPress={() => navigation.navigate('CompletedProjects')}
+                          style={styles.completedTag}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.completedTagText}>
+                            Completed {dashboardStats.projects.completed}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -8362,507 +8343,8 @@ Project Team`;
                   }}
                 >
                   <View style={{ flex: 1, justifyContent: "space-between" }}>
-                    <View>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: 20,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            color: "#111827",
-                          }}
-                        >
-                          Project Status Report
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <TouchableOpacity
-                            onPress={handleDownloadPDF}
-                            style={{
-                              padding: 8,
-                              backgroundColor: "#f3f4f6",
-                              borderRadius: 8,
-                            }}
-                          >
-                            <Ionicons
-                              name="document-text-outline"
-                              size={20}
-                              color="#374151"
-                            />
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={handleDirectWhatsAppShare}
-                            style={{
-                              padding: 8,
-                              backgroundColor: "#dcfce7",
-                              borderRadius: 8,
-                            }}
-                          >
-                            <Ionicons
-                              name="logo-whatsapp"
-                              size={20}
-                              color="#16a34a"
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      {/* 1. Project Location Widget - Increased vertical padding/flex */}
-                      <View
-                        style={[styles.reportCard, { paddingVertical: 24 }]}
-                      >
-                        <View style={styles.reportIconContainer}>
-                          <Ionicons name="location" size={24} color="#8B0000" />
-                        </View>
-                        <View>
-                          <Text style={styles.reportLabel}>
-                            Project Location
-                          </Text>
-                          <Text
-                            style={[styles.reportValueSmall, { fontSize: 16 }]}
-                          >
-                            {formData.address || "Not set"}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* 2. Duration & Days - Stretched vertically */}
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          gap: 16,
-                          marginBottom: 16,
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.reportCard,
-                            {
-                              flex: 1,
-                              marginBottom: 0,
-                              paddingVertical: 24,
-                              justifyContent: "center",
-                            },
-                          ]}
-                        >
-                          <Text style={styles.reportLabel}>Duration</Text>
-                          <View style={{ marginTop: 12 }}>
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                color: "#1f2937",
-                              }}
-                            >
-                              {formData.startDate || "--"}
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: "#9ca3af",
-                                marginVertical: 4,
-                              }}
-                            >
-                              to
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                color: "#1f2937",
-                              }}
-                            >
-                              {formData.endDate || "--"}
-                            </Text>
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            styles.reportCard,
-                            {
-                              flex: 1,
-                              marginBottom: 0,
-                              justifyContent: "center",
-                              alignItems: "center",
-                              paddingVertical: 24,
-                            },
-                          ]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={32}
-                            color="#64748b"
-                            style={{ marginBottom: 8 }}
-                          />
-                          <Text
-                            style={[styles.reportBigValue, { fontSize: 32 }]}
-                          >
-                            {(() => {
-                              const parseDate = (dStr: string) => {
-                                if (!dStr) return null;
-                                const [day, month, year] = dStr.split("/");
-                                return new Date(
-                                  Number(year),
-                                  Number(month) - 1,
-                                  Number(day),
-                                );
-                              };
-
-                              const start = parseDate(formData.startDate);
-                              const end = parseDate(formData.endDate);
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-
-                              // If dates are invalid
-                              if (!start || !end) return 0;
-
-                              // Logic:
-                              // 1. If today is BEFORE start date -> Show Total Duration (End - Start)
-                              // 2. If today is AFTER start date -> Show Remaining Days (End - Today)
-
-                              let diffTime = 0;
-                              if (today < start) {
-                                // Project not started yet: Show total duration
-                                diffTime = end.getTime() - start.getTime();
-                              } else {
-                                // Project started: Show remaining days
-                                diffTime = end.getTime() - today.getTime();
-                              }
-
-                              const days = Math.ceil(
-                                diffTime / (1000 * 3600 * 24),
-                              );
-                              return days > 0 ? days : 0;
-                            })()}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.reportLabel,
-                              { marginTop: 4, marginBottom: 16 },
-                            ]}
-                          >
-                            Days Remaining
-                          </Text>
-
-                          {/* Embedded Timeline Progress */}
-                          <View
-                            style={{ width: "100%", paddingHorizontal: 12 }}
-                          >
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                justifyContent: "space-between",
-                                marginBottom: 6,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: "700",
-                                  color: "#64748b",
-                                  textTransform: "uppercase",
-                                }}
-                              >
-                                Timeline Progress
-                              </Text>
-                              <Text
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: "800",
-                                  color: "#166534",
-                                }}
-                              >
-                                {(() => {
-                                  const parseDate = (dStr: string) => {
-                                    if (!dStr) return null;
-                                    const [day, month, year] = dStr.split("/");
-                                    return new Date(
-                                      Number(year),
-                                      Number(month) - 1,
-                                      Number(day),
-                                    );
-                                  };
-                                  const start = parseDate(formData.startDate);
-                                  const end = parseDate(formData.endDate);
-                                  const today = new Date();
-                                  today.setHours(0, 0, 0, 0);
-
-                                  if (!start || !end) return "0%";
-
-                                  const totalDuration =
-                                    end.getTime() - start.getTime();
-                                  const elapsed =
-                                    today.getTime() - start.getTime();
-
-                                  let pct = 0;
-                                  if (totalDuration > 0) {
-                                    pct = (elapsed / totalDuration) * 100;
-                                  }
-                                  pct = Math.max(0, Math.min(100, pct));
-
-                                  return `${Math.round(pct)}%`;
-                                })()}
-                              </Text>
-                            </View>
-                            <View
-                              style={{
-                                height: 8,
-                                backgroundColor: "#f1f5f9",
-                                borderRadius: 4,
-                                overflow: "hidden",
-                                marginBottom: 8,
-                              }}
-                            >
-                              <View
-                                style={{
-                                  height: "100%",
-                                  width: (() => {
-                                    const parseDate = (dStr: string) => {
-                                      if (!dStr) return null;
-                                      const [day, month, year] =
-                                        dStr.split("/");
-                                      return new Date(
-                                        Number(year),
-                                        Number(month) - 1,
-                                        Number(day),
-                                      );
-                                    };
-                                    const start = parseDate(formData.startDate);
-                                    const end = parseDate(formData.endDate);
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-
-                                    if (!start || !end) return "0%";
-
-                                    const totalDuration =
-                                      end.getTime() - start.getTime();
-                                    const elapsed =
-                                      today.getTime() - start.getTime();
-
-                                    let pct = 0;
-                                    if (totalDuration > 0) {
-                                      pct = (elapsed / totalDuration) * 100;
-                                    }
-                                    return `${Math.max(
-                                      0,
-                                      Math.min(100, pct),
-                                    )}%`;
-                                  })(),
-                                  backgroundColor: "#166534",
-                                  borderRadius: 4,
-                                }}
-                              />
-                            </View>
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: "#64748b",
-                                textAlign: "center",
-                              }}
-                            >
-                              {(() => {
-                                const parseDate = (dStr: string) => {
-                                  if (!dStr) return null;
-                                  const [day, month, year] = dStr.split("/");
-                                  return new Date(
-                                    Number(year),
-                                    Number(month) - 1,
-                                    Number(day),
-                                  );
-                                };
-                                const start = parseDate(formData.startDate);
-                                const end = parseDate(formData.endDate);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-
-                                if (!start || !end) return "";
-
-                                const totalDuration =
-                                  end.getTime() - start.getTime();
-                                const elapsed =
-                                  today.getTime() - start.getTime();
-
-                                const totalDays = Math.ceil(
-                                  totalDuration / (1000 * 3600 * 24),
-                                );
-                                const elapsedDays = Math.ceil(
-                                  elapsed / (1000 * 3600 * 24),
-                                );
-
-                                const validElapsed = Math.max(
-                                  0,
-                                  Math.min(totalDays, elapsedDays),
-                                );
-                                return `${validElapsed} of ${totalDays} days completed`;
-                              })()}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* 3. Overall Progress - Stretched */}
-                      <View
-                        style={[styles.reportCard, { paddingVertical: 24 }]}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            marginBottom: 16,
-                          }}
-                        >
-                          <Text style={styles.reportLabel}>
-                            Overall Progress
-                          </Text>
-                          <Text
-                            style={{
-                              fontSize: 16,
-                              fontWeight: "800",
-                              color: "#166534",
-                            }}
-                          >
-                            {projectTasks.length > 0
-                              ? Math.round(
-                                (projectTasks.filter(
-                                  (t) =>
-                                    t.status === "Completed" ||
-                                    t.status === "completed",
-                                ).length /
-                                  projectTasks.length) *
-                                100,
-                              )
-                              : 0}
-                            %
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            height: 12,
-                            backgroundColor: "#f1f5f9",
-                            borderRadius: 6,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <View
-                            style={{
-                              height: "100%",
-                              width: `${projectTasks.length > 0
-                                ? Math.round(
-                                  (projectTasks.filter(
-                                    (t) =>
-                                      t.status === "Completed" ||
-                                      t.status === "completed",
-                                  ).length /
-                                    projectTasks.length) *
-                                  100,
-                                )
-                                : 0
-                                }%`,
-                              backgroundColor: "#166534",
-                              borderRadius: 6,
-                            }}
-                          />
-                        </View>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginTop: 12,
-                          }}
-                        >
-                          Based on {projectTasks.length} total tasks across{" "}
-                          {settingsPhases.length} stages.
-                        </Text>
-                      </View>
-                    </View>
-
                     {/* 4. Task Counts Grid - Pushed to bottom but connected visually */}
                     <View>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontWeight: "700",
-                          color: "#6b7280",
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Task Breakdown
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 12 }}>
-                        <View
-                          style={[
-                            styles.reportStatBox,
-                            {
-                              backgroundColor: "#f0fdf4",
-                              borderColor: "#bbf7d0",
-                              paddingVertical: 20,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.reportStatNumber,
-                              { color: "#166534", fontSize: 24 },
-                            ]}
-                          >
-                            {
-                              projectTasks.filter(
-                                (t) =>
-                                  t.status === "Completed" ||
-                                  t.status === "completed",
-                              ).length
-                            }
-                          </Text>
-                          <Text
-                            style={[
-                              styles.reportStatLabel,
-                              { color: "#166534" },
-                            ]}
-                          >
-                            Completed
-                          </Text>
-                        </View>
-                        <View
-                          style={[
-                            styles.reportStatBox,
-                            {
-                              backgroundColor: "#fff7ed",
-                              borderColor: "#fed7aa",
-                              paddingVertical: 20,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.reportStatNumber,
-                              { color: "#9a3412", fontSize: 24 },
-                            ]}
-                          >
-                            {
-                              projectTasks.filter(
-                                (t) =>
-                                  t.status !== "Completed" &&
-                                  t.status !== "completed",
-                              ).length
-                            }
-                          </Text>
-                          <Text
-                            style={[
-                              styles.reportStatLabel,
-                              { color: "#9a3412" },
-                            ]}
-                          >
-                            Pending
-                          </Text>
-                        </View>
-                      </View>
                     </View>
                   </View>
                 </ScrollView>
@@ -11717,6 +11199,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e5e7eb",
     elevation: 2,
+  },
+  totalProjectsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    width: "100%",
+  },
+  completedTag: {
+    backgroundColor: "#D1FAE5",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  completedTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#10B981",
   },
   metricLabel: {
     fontSize: 13,

@@ -48,6 +48,7 @@ import { Platform } from "react-native";
 // const PROD_API_URL = "https://noorclient.prolync.in/api";
 const PROD_API_URL = "http://localhost:5000/api";
 
+
 // ✅ Optional: local dev URL (ONLY for local testing)
 const DEV_API_URL = "http://localhost:5000";
 
