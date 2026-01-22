@@ -7,7 +7,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 1,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Initial Planning & Site Preparation",
         tasks: [
             "Site plan",
@@ -19,7 +19,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 2,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Basement / Foundation Construction",
         tasks: [
             "Site clearance",
@@ -44,7 +44,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 3,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Lintel Level Construction",
         tasks: [
             "Lintel level marking",
@@ -61,7 +61,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 4,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Roof Level Construction",
         tasks: [
             "Roof level marking",
@@ -78,7 +78,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 5,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Wall & Finishing Works",
         tasks: [
             "Parapet wall brick work and sill concrete",
@@ -93,7 +93,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 6,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Compound Wall Construction",
         tasks: [
             "Compound wall basement",
@@ -104,7 +104,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 7,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Electrical & Plumbing Rough-In",
         tasks: [
             "Electrical wiring",
@@ -114,7 +114,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 8,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Plumbing Finishes",
         tasks: [
             "Plumbing finishing work",
@@ -129,7 +129,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 9,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Electrical Finishes",
         tasks: [
             "Electrical finishing work",
@@ -141,7 +141,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 10,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Painting",
         tasks: [
             "Inner painting work",
@@ -160,7 +160,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 11,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Tiles Work",
         tasks: [
             "Bathroom wall & floor tiles",
@@ -173,7 +173,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 12,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Granite & Staircase Work",
         tasks: [
             "Kitchen tabletop granite",
@@ -185,7 +185,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 13,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Carpentry Finishes",
         tasks: [
             "Carpenter finishing work",
@@ -199,7 +199,7 @@ const CONSTRUCTION_TEMPLATE = [
     {
         serialNumber: 14,
         floorNumber: 0,
-        floorName: "Main Project",
+        floorName: "",
         stageName: "Optional Extras",
         tasks: [
             "Elevation grill / laser work",

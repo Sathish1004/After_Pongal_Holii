@@ -168,74 +168,13 @@ exports.getSiteWithPhases = async (req, res) => {
             return res.status(404).json({ message: 'Site not found' });
         }
 
-        // --- AUTO-MIGRATION LOGIC FOR PHASES & TASKS ---
-        // Load the new template
-        const CONSTRUCTION_TEMPLATE = require('../templates/construction-template');
-
-        // Define legacy mapping (Old Name -> New Name) based on Index/Order
-        // We rely on order_num primarily if names match the old standard
-        const LEGACY_NAMES = [
-            "Site Preparation", "Excavation", "Footing Construction", "Foundation Work",
-            "Column Construction", "Plinth Beam", "Ground Floor Slab", "First Floor Work",
-            "Brickwork", "Electrical & Plumbing", "Plastering", "Flooring & Finishing",
-            "Painting", "Final Inspection & Handover"
-        ];
-
-        // 1. Fetch current phases
-        let [currentPhases] = await db.query('SELECT * FROM phases WHERE site_id = ? ORDER BY order_num ASC', [id]);
-        let migrationOccurred = false;
-
-        // 2. Check and Migrate Phase Names & Populate Tasks
-        for (const phase of currentPhases) {
-            // A. RENAME LEGACY PHASES
-            const legacyIndex = LEGACY_NAMES.indexOf(phase.name);
-            let targetTemplate = null;
-
-            if (legacyIndex !== -1 && legacyIndex < CONSTRUCTION_TEMPLATE.length) {
-                // Determine target based on legacy name match index
-                targetTemplate = CONSTRUCTION_TEMPLATE[legacyIndex];
-            } else {
-                // Try to find by direct name match (already migrated?)
-                targetTemplate = CONSTRUCTION_TEMPLATE.find(t => t.stageName === phase.name);
-
-                // Fallback: If not found, maybe match by serial number?
-                if (!targetTemplate && phase.order_num <= CONSTRUCTION_TEMPLATE.length) {
-                    targetTemplate = CONSTRUCTION_TEMPLATE[phase.order_num - 1];
-                }
-            }
-
-            if (targetTemplate) {
-                // Check if rename needed
-                if (phase.name !== targetTemplate.stageName) {
-                    console.log(`[Auto-Heal] Renaming Phase ${phase.id}: "${phase.name}" -> "${targetTemplate.stageName}"`);
-                    await db.query('UPDATE phases SET name = ? WHERE id = ?', [targetTemplate.stageName, phase.id]);
-                    phase.name = targetTemplate.stageName; // Update local for next step
-                    migrationOccurred = true;
-                }
-
-                // B. POPULATE MISSING TASKS
-                const [taskCount] = await db.query('SELECT COUNT(*) as count FROM tasks WHERE phase_id = ?', [phase.id]);
-                if (taskCount[0].count === 0) {
-                    console.log(`[Auto-Heal] Populating tasks for Phase ${phase.id} (${phase.name})...`);
-                    let taskOrder = 1;
-                    for (const taskName of targetTemplate.tasks) {
-                        await db.query(
-                            `INSERT INTO tasks (site_id, phase_id, name, status, order_index) 
-                             VALUES (?, ?, ?, 'Not Started', ?)`,
-                            [id, phase.id, taskName, taskOrder++]
-                        );
-                    }
-                    migrationOccurred = true;
-                }
-            }
-        }
-
-        // 3. Re-fetch if migration happened
-        if (migrationOccurred) {
-            console.log('[Auto-Heal] Refreshing site data after migration...');
-        }
-
-        // --- END MIGRATION LOGIC ---
+        // --- AUTO-MIGRATION LOGIC DISABLED ---
+        // ⛔ REMOVED: Auto-renaming phases to template names
+        // ⛔ REMOVED: Auto-populating tasks from templates
+        // 
+        // Reason: Admin should have complete control over phase names
+        // Any phase name changes must be done explicitly by admin
+        // --- END AUTO-MIGRATION (DISABLED) ---
 
         const [phases] = await db.query(`
             SELECT p.*, e.name as assigned_employee_name,
@@ -245,6 +184,11 @@ exports.getSiteWithPhases = async (req, res) => {
             WHERE p.site_id = ?
             ORDER BY p.floor_number ASC, p.order_num ASC
         `, [id]);
+
+        console.log(`\n[getSiteWithPhases-DEBUG] Returning ${phases.length} phases:`);
+        phases.forEach((p, idx) => {
+            console.log(`  [${idx}] ID: ${p.id}, Name: "${p.name}", Order: ${p.order_num}`);
+        });
 
         const [tasks] = await db.query(`
             SELECT t.*, 
@@ -314,6 +258,11 @@ exports.addPhase = async (req, res) => {
         // Frontend sends serialNumber as the intended order.
         const sNumber = parseInt(serialNumber) || parseInt(orderNum);
 
+        console.log(`\n[addPhase-DEBUG] ========== PHASE CREATION (STRICT ADMIN CONTROL) ==========`);
+        console.log(`[addPhase-DEBUG] Input Name: "${name}"`);
+        console.log(`[addPhase-DEBUG] Site ID: ${siteId}`);
+        console.log(`[addPhase-DEBUG] Serial Number: ${sNumber}`);
+
         if (!sNumber) {
             return res.status(400).json({ message: 'Serial Number is required' });
         }
@@ -326,7 +275,7 @@ exports.addPhase = async (req, res) => {
 
         if (existing.length > 0) {
             // INSERTION LOGIC: Shift existing phases down
-            console.log(`[addPhase] Order number ${sNumber} exists. Shifting subsequent phases...`);
+            console.log(`[addPhase-DEBUG] Order number ${sNumber} exists. Shifting subsequent phases...`);
 
             // Shift all phases with order_num >= sNumber by +1
             await db.query(
@@ -335,18 +284,23 @@ exports.addPhase = async (req, res) => {
             );
         }
 
-        // Insert new phase
+        // Insert new phase - EXACT NAME, NO MODIFICATIONS
         const [result] = await db.query(
             'INSERT INTO phases (site_id, name, order_num, budget, floor_number, floor_name) VALUES (?, ?, ?, ?, ?, ?)',
             [siteId, name, sNumber, budget || 0, fNumber, fName]
         );
 
+        console.log(`[addPhase-DEBUG] ✅ Phase inserted with ID: ${result.insertId}`);
+        console.log(`[addPhase-DEBUG] Phase Name in DB: "${name}"`);
+
         // Re-index internal order just to keep it clean
         await reindexPhases(siteId);
 
+        console.log(`[addPhase-DEBUG] ========== PHASE CREATION COMPLETE ==========\n`);
         res.status(201).json({ message: 'Stage added successfully', phaseId: result.insertId });
     } catch (error) {
-        console.error('Error adding phase:', error);
+        console.error(`[addPhase-DEBUG] ❌ Exception:`, error.message);
+        console.error(`[addPhase-DEBUG] Full error:`, error);
         res.status(500).json({ message: 'Error adding phase' });
     }
 };
@@ -357,6 +311,10 @@ exports.updatePhase = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, order_num, budget, serialNumber, floorName, floorNumber } = req.body;
+
+        console.log(`\n[updatePhase-DEBUG] ========== PHASE UPDATE ==========`);
+        console.log(`[updatePhase-DEBUG] Phase ID: ${id}`);
+        console.log(`[updatePhase-DEBUG] Updates:`, { name, order_num, budget, serialNumber, floorName, floorNumber });
 
         const updates = [];
         const params = [];
@@ -369,19 +327,24 @@ exports.updatePhase = async (req, res) => {
         if (floorNumber !== undefined) { updates.push('floor_number = ?'); params.push(floorNumber); }
 
         if (updates.length === 0) {
+            console.log(`[updatePhase-DEBUG] No changes to update`);
             return res.json({ message: 'No changes detected' });
         }
 
         params.push(id);
 
+        console.log(`[updatePhase-DEBUG] Executing update:`, updates.join(', '));
         await db.query(
             `UPDATE phases SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
 
+        console.log(`[updatePhase-DEBUG] ✅ Phase updated successfully`);
+        console.log(`[updatePhase-DEBUG] ========== PHASE UPDATE COMPLETE ==========\n`);
         res.json({ message: 'Phase updated successfully' });
     } catch (error) {
-        console.error('Error updating phase:', error);
+        console.error(`[updatePhase-DEBUG] ❌ Error:`, error.message);
+        console.error(`[updatePhase-DEBUG] Full error:`, error);
         res.status(500).json({ message: 'Error updating phase' });
     }
 };

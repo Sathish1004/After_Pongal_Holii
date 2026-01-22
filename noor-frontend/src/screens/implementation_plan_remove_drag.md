@@ -22,3 +22,6 @@ Remove all drag-and-drop functionality from the Admin Dashboard to simplify the 
 
 ## Notes
 - The `react-native-draggable-flatlist` package is no longer used in `AdminDashboardScreen.tsx` and appears unused in the rest of `src`. It can be safely uninstalled if desired.
+When creating a new project, display only the 14 predefined construction phases.
+Do not show the blue “OTHER” container during project creation or initial load.
+The “OTHER” section must appear only after the admin adds a custom phase using the Add Stage option.
