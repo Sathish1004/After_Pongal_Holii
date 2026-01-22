@@ -1268,17 +1268,21 @@ const AdminDashboardScreen = () => {
   const [addStageModalVisible, setAddStageModalVisible] = useState(false);
   const [newStagePhase, setNewStagePhase] = useState<any>(null);
   const [phaseSearchQuery, setPhaseSearchQuery] = useState("");
-
+  
   const [addMilestoneModalVisible, setAddMilestoneModalVisible] = useState(false);
   const [editingMilestone, setEditingMilestone] = useState<any>(null);
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [projectLoading, setProjectLoading] = useState(false);
 
+  // Project Modal State (List) - Moved before useEffect to fix dependency order
+  const [projectModalVisible, setProjectModalVisible] = useState(false);
+  const [taskModalVisible, setTaskModalVisible] = useState(false);
+  const [sitePickerVisible, setSitePickerVisible] = useState(false);
+
   const [phaseModalVisible, setPhaseModalVisible] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState("");
   const [newPhaseSNo, setNewPhaseSNo] = useState("");
   const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [addTaskModalVisible, setAddTaskModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskSerialNumber, setNewTaskSerialNumber] = useState("");
@@ -1349,13 +1353,13 @@ const AdminDashboardScreen = () => {
   const startEditing = (section: "projectInfo" | "clientDetails") => {
     // Check if formData exists check
     if (typeof formData !== 'undefined') {
-      setTempFormData({ ...formData });
+        setTempFormData({ ...formData });
     }
     setEditingSection(section);
   };
   const cancelEditing = () => {
     if (typeof formData !== 'undefined' && tempFormData) {
-      setFormData(tempFormData);
+        setFormData(tempFormData);
     }
     setEditingSection("none");
     setTempFormData(null);
@@ -1385,6 +1389,13 @@ const AdminDashboardScreen = () => {
     }
   }, [isFocused]);
 
+  useEffect(() => {
+    if (!projectModalVisible && !taskModalVisible && !sitePickerVisible) {
+      fetchSites();
+      fetchDashboardStats();
+      fetchApprovals();
+    }
+  }, [projectModalVisible, taskModalVisible, sitePickerVisible]);
 
   const fetchEmployees = async () => {
     try {
@@ -1898,16 +1909,12 @@ const AdminDashboardScreen = () => {
     }
   };
 
-  // Project Modal State (List)
-  const [projectModalVisible, setProjectModalVisible] = useState(false);
-
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [sitePickerVisible, setSitePickerVisible] = useState(false);
   const [settingsPhases, setSettingsPhases] = useState<any[]>([]);
 
   // Files State
@@ -1982,16 +1989,6 @@ const AdminDashboardScreen = () => {
       fetchCompletedTasksList(completedTaskFilter);
     }
   }, [completedTaskFilter, activeTab]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!projectModalVisible && !taskModalVisible && !sitePickerVisible) {
-      fetchSites();
-      fetchDashboardStats();
-      fetchApprovals();
-    }
-  }, [projectModalVisible, taskModalVisible, sitePickerVisible]);
-
 
   const fetchDashboardStats = async () => {
     setStatsLoading(true);
@@ -6787,49 +6784,49 @@ Project Team`;
             >
               {/* Serial Number & Floor Section */}
               <View style={{ marginBottom: 20 }}>
-                <Text style={styles.inputLabel}>Serial Number</Text>
-                <TextInput
-                  style={{
-                    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 10,
-                    backgroundColor: '#F9FAFB', color: '#111827', fontSize: 14, marginBottom: 15
-                  }}
-                  placeholder="e.g. 1"
-                  value={newStageSerialNumber}
-                  onChangeText={setNewStageSerialNumber}
-                  keyboardType="numeric"
-                />
-
-                <Text style={styles.inputLabel}>Select Floor(s)</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {AVAILABLE_FLOORS.map((floor) => (
-                    <TouchableOpacity
-                      key={floor}
-                      onPress={() => {
-                        if (newStageFloors.includes(floor)) {
-                          setNewStageFloors(newStageFloors.filter((f) => f !== floor));
-                        } else {
-                          setNewStageFloors([...newStageFloors, floor]);
-                        }
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 14,
-                        borderRadius: 20,
-                        borderWidth: 1,
-                        backgroundColor: newStageFloors.includes(floor) ? "#EFF6FF" : "#fff",
-                        borderColor: newStageFloors.includes(floor) ? "#3B82F6" : "#E5E7EB",
-                      }}
-                    >
-                      <Text style={{
-                        fontSize: 13,
-                        color: newStageFloors.includes(floor) ? "#1D4ED8" : "#374151",
-                        fontWeight: newStageFloors.includes(floor) ? "600" : "400"
-                      }}>
-                        {floor}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                 <Text style={styles.inputLabel}>Serial Number</Text>
+                 <TextInput
+                    style={{
+                        borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 10,
+                        backgroundColor: '#F9FAFB', color: '#111827', fontSize: 14, marginBottom: 15
+                    }}
+                    placeholder="e.g. 1"
+                    value={newStageSerialNumber}
+                    onChangeText={setNewStageSerialNumber}
+                    keyboardType="numeric"
+                 />
+                 
+                 <Text style={styles.inputLabel}>Select Floor(s)</Text>
+                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {AVAILABLE_FLOORS.map((floor) => (
+                      <TouchableOpacity
+                        key={floor}
+                        onPress={() => {
+                          if (newStageFloors.includes(floor)) {
+                            setNewStageFloors(newStageFloors.filter((f) => f !== floor));
+                          } else {
+                            setNewStageFloors([...newStageFloors, floor]);
+                          }
+                        }}
+                        style={{
+                          paddingVertical: 8,
+                          paddingHorizontal: 14,
+                          borderRadius: 20,
+                          borderWidth: 1,
+                          backgroundColor: newStageFloors.includes(floor) ? "#EFF6FF" : "#fff",
+                          borderColor: newStageFloors.includes(floor) ? "#3B82F6" : "#E5E7EB",
+                        }}
+                      >
+                        <Text style={{ 
+                            fontSize: 13, 
+                            color: newStageFloors.includes(floor) ? "#1D4ED8" : "#374151",
+                            fontWeight: newStageFloors.includes(floor) ? "600" : "400"
+                        }}>
+                          {floor}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                 </View>
               </View>
 
               {/* Main Stage Selector - Scrollable */}
@@ -6838,9 +6835,9 @@ Project Team`;
                 Select a stage to load related sub-stages below
               </Text>
 
-              <View style={{
-                borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8,
-                maxHeight: 220, overflow: "hidden", marginBottom: 20
+              <View style={{ 
+                  borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, 
+                  maxHeight: 220, overflow: "hidden", marginBottom: 20 
               }}>
                 <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
                   {MAIN_CONSTRUCTION_STAGES.map((stage) => (
@@ -6859,16 +6856,16 @@ Project Team`;
                         setCheckedSubStages(stage.subStages); // Auto-select all by default
                       }}
                     >
-                      <View style={{
-                        width: 20, height: 20, borderRadius: 10, borderWidth: 2,
-                        borderColor: selectedMainStage?.id === stage.id ? '#3B82F6' : '#D1D5DB',
-                        alignItems: 'center', justifyContent: 'center', marginRight: 12
+                      <View style={{ 
+                          width: 20, height: 20, borderRadius: 10, borderWidth: 2,
+                          borderColor: selectedMainStage?.id === stage.id ? '#3B82F6' : '#D1D5DB',
+                          alignItems: 'center', justifyContent: 'center', marginRight: 12
                       }}>
-                        {selectedMainStage?.id === stage.id && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#3B82F6' }} />}
+                          {selectedMainStage?.id === stage.id && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#3B82F6' }} />}
                       </View>
                       <View>
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#1F2937" }}>{stage.name}</Text>
-                        <Text style={{ fontSize: 11, color: "#9CA3AF" }}>{stage.subStages.length} sub-stages</Text>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: "#1F2937" }}>{stage.name}</Text>
+                          <Text style={{ fontSize: 11, color: "#9CA3AF" }}>{stage.subStages.length} sub-stages</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -6877,73 +6874,73 @@ Project Team`;
 
               {/* Sub-Stages Selection Panel */}
               {selectedMainStage && selectedSubStages.length > 0 && (
-                <View style={{
-                  backgroundColor: "#F9FAFB", borderRadius: 12, padding: 16,
-                  borderWidth: 1, borderColor: "#E5E7EB"
+                <View style={{ 
+                    backgroundColor: "#F9FAFB", borderRadius: 12, padding: 16, 
+                    borderWidth: 1, borderColor: "#E5E7EB" 
                 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}>
-                      Sub-Stages
-                    </Text>
-                    {/* Select All Checkbox */}
-                    <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center' }}
-                      onPress={() => {
-                        if (checkedSubStages.length === selectedSubStages.length) {
-                          setCheckedSubStages([]);
-                        } else {
-                          setCheckedSubStages([...selectedSubStages]);
-                        }
-                      }}
-                    >
-                      <View style={{
-                        width: 18, height: 18, borderRadius: 4, borderWidth: 1.5,
-                        borderColor: checkedSubStages.length === selectedSubStages.length ? '#3B82F6' : '#9CA3AF',
-                        backgroundColor: checkedSubStages.length === selectedSubStages.length ? '#3B82F6' : 'transparent',
-                        alignItems: 'center', justifyContent: 'center', marginRight: 6
-                      }}>
-                        {checkedSubStages.length === selectedSubStages.length && <Ionicons name="checkmark" size={12} color="white" />}
-                      </View>
-                      <Text style={{ fontSize: 13, color: '#374151', fontWeight: '500' }}>Select All</Text>
-                    </TouchableOpacity>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}>
+                        Sub-Stages
+                      </Text>
+                      {/* Select All Checkbox */}
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                        onPress={() => {
+                            if (checkedSubStages.length === selectedSubStages.length) {
+                                setCheckedSubStages([]);
+                            } else {
+                                setCheckedSubStages([...selectedSubStages]);
+                            }
+                        }}
+                      >
+                        <View style={{ 
+                            width: 18, height: 18, borderRadius: 4, borderWidth: 1.5,
+                            borderColor: checkedSubStages.length === selectedSubStages.length ? '#3B82F6' : '#9CA3AF',
+                            backgroundColor: checkedSubStages.length === selectedSubStages.length ? '#3B82F6' : 'transparent',
+                            alignItems: 'center', justifyContent: 'center', marginRight: 6
+                        }}>
+                           {checkedSubStages.length === selectedSubStages.length && <Ionicons name="checkmark" size={12} color="white" />}
+                        </View>
+                        <Text style={{ fontSize: 13, color: '#374151', fontWeight: '500' }}>Select All</Text>
+                      </TouchableOpacity>
                   </View>
-
+                  
                   <View style={{ gap: 8 }}>
                     {selectedSubStages.map((sub, idx) => {
-                      const isChecked = checkedSubStages.includes(sub);
-                      return (
-                        <TouchableOpacity
-                          key={idx}
-                          style={{
-                            flexDirection: 'row', alignItems: 'center', padding: 10,
-                            backgroundColor: 'white', borderRadius: 8, borderWidth: 1,
-                            borderColor: isChecked ? '#93C5FD' : '#E5E7EB'
-                          }}
-                          onPress={() => {
-                            if (isChecked) {
-                              setCheckedSubStages(checkedSubStages.filter(s => s !== sub));
-                            } else {
-                              setCheckedSubStages([...checkedSubStages, sub]);
-                            }
-                          }}
-                        >
-                          <View style={{
-                            width: 20, height: 20, borderRadius: 4, borderWidth: 1.5,
-                            borderColor: isChecked ? '#3B82F6' : '#D1D5DB', marginRight: 10, alignItems: 'center', justifyContent: 'center',
-                            backgroundColor: isChecked ? '#3B82F6' : 'white'
-                          }}>
-                            {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
-                          </View>
-                          <Text style={{ fontSize: 13, color: isChecked ? '#1E40AF' : '#4B5563', flex: 1 }}>{sub}</Text>
-                        </TouchableOpacity>
-                      )
+                        const isChecked = checkedSubStages.includes(sub);
+                        return (
+                           <TouchableOpacity 
+                             key={idx}
+                             style={{ 
+                                 flexDirection: 'row', alignItems: 'center', padding: 10, 
+                                 backgroundColor: 'white', borderRadius: 8, borderWidth: 1,
+                                 borderColor: isChecked ? '#93C5FD' : '#E5E7EB'
+                             }}
+                             onPress={() => {
+                                 if (isChecked) {
+                                     setCheckedSubStages(checkedSubStages.filter(s => s !== sub));
+                                 } else {
+                                     setCheckedSubStages([...checkedSubStages, sub]);
+                                 }
+                             }}
+                           >
+                            <View style={{ 
+                                width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, 
+                                borderColor: isChecked ? '#3B82F6' : '#D1D5DB', marginRight: 10, alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: isChecked ? '#3B82F6' : 'white'
+                            }}>
+                                {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
+                            </View>
+                            <Text style={{ fontSize: 13, color: isChecked ? '#1E40AF' : '#4B5563', flex: 1 }}>{sub}</Text>
+                           </TouchableOpacity>
+                        )
                     })}
                   </View>
-
+                  
                   <View style={{ marginTop: 12 }}>
-                    <Text style={{ fontSize: 11, color: "#059669", fontStyle: "italic" }}>
-                      {checkedSubStages.length} tasks will be created for each selected floor.
-                    </Text>
+                     <Text style={{ fontSize: 11, color: "#059669", fontStyle: "italic" }}>
+                        {checkedSubStages.length} tasks will be created for each selected floor.
+                     </Text>
                   </View>
                 </View>
               )}
