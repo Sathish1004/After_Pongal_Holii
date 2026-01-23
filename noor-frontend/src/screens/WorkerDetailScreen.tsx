@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { LineChart } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 import { BarChart } from 'react-native-gifted-charts';
 import api from '../services/api';
 
@@ -138,6 +138,45 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
         ];
     }, [stats]);
 
+    const pieChartData = useMemo(() => {
+        if (!stats) return [];
+        const { onTime, late, overdue, ongoing } = stats.performance_breakdown;
+        const total = onTime + late + overdue + ongoing;
+        
+        if (total === 0) return [];
+
+        return [
+            {
+                name: 'On Time',
+                population: onTime,
+                color: '#10B981',
+                legendFontColor: '#374151',
+                legendFontSize: 12,
+            },
+            {
+                name: 'Late',
+                population: late,
+                color: '#F59E0B',
+                legendFontColor: '#374151',
+                legendFontSize: 12,
+            },
+            {
+                name: 'Overdue',
+                population: overdue,
+                color: '#EF4444',
+                legendFontColor: '#374151',
+                legendFontSize: 12,
+            },
+            {
+                name: 'Ongoing',
+                population: ongoing,
+                color: '#3B82F6',
+                legendFontColor: '#374151',
+                legendFontSize: 12,
+            },
+        ].filter(item => item.population > 0); // Only show non-zero values
+    }, [stats]);
+
     const trendChartData = useMemo(() => {
         if (!tasks.length || !fromDate || !toDate) return null;
         const labels: string[] = [];
@@ -209,9 +248,8 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                {/* 1. Main Card Container (Profile + Summaries) */}
-                <View style={styles.mainCard}>
-                    {/* A) Profile Header */}
+                {/* 1. Profile Header Card */}
+                <View style={styles.profileCard}>
                     <View style={styles.profileHeader}>
                         <View style={styles.avatar}>
                             {worker?.profile_image ? (
@@ -232,73 +270,61 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                             <Text style={styles.statusText}>{worker?.status}</Text>
                         </View>
                     </View>
+                </View>
 
-                    <View style={styles.separator} />
-
-                    {/* B) Horizontal Summary Row */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.summaryRow}>
+                {/* 2. Stats Cards Row */}
+                <View style={styles.statsContainer}>
+                    <View style={styles.summaryRow}>
 
                         {/* Tasks Assigned */}
                         <View style={styles.summaryCard}>
                             <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
-                                <Ionicons name="clipboard-outline" size={20} color="#3B82F6" />
+                                <Ionicons name="clipboard-outline" size={18} color="#3B82F6" />
                             </View>
-                            <Text style={styles.summaryLabel}>Tasks Assigned</Text>
                             <Text style={styles.summaryValue}>{worker?.tasksAssigned || 0}</Text>
-                            <Text style={styles.summarySubLabel}>Tasks Assigned</Text>
+                            <Text style={styles.summaryLabel}>Tasks Assigned</Text>
                         </View>
 
                         {/* Tasks Completed */}
                         <View style={styles.summaryCard}>
                             <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}>
-                                <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+                                <Ionicons name="checkmark-circle-outline" size={18} color="#10B981" />
                             </View>
-                            <Text style={styles.summaryLabel}>Tasks Completed</Text>
                             <Text style={styles.summaryValue}>{worker?.tasksCompleted || 0}</Text>
-                            <Text style={styles.summarySubLabel}>Tasks Completed</Text>
+                            <Text style={styles.summaryLabel}>Tasks Completed</Text>
                         </View>
 
                         {/* Tasks Overdue */}
                         <View style={styles.summaryCard}>
                             <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
-                                <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+                                <Ionicons name="alert-circle-outline" size={18} color="#EF4444" />
                             </View>
-                            <Text style={styles.summaryLabel}>Tasks Overdue</Text>
                             <Text style={styles.summaryValue}>{worker?.tasksOverdue || 0}</Text>
-                            <Text style={styles.summarySubLabel}>Tasks Overdue</Text>
+                            <Text style={styles.summaryLabel}>Tasks Overdue</Text>
                         </View>
 
                         {/* Performance Score */}
                         <View style={styles.summaryCard}>
                             <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}>
-                                <Ionicons name="speedometer-outline" size={20} color="#059669" />
+                                <Ionicons name="speedometer-outline" size={18} color="#059669" />
                             </View>
-                            <Text style={styles.summaryLabel}>Tasks</Text>
-                            <Text style={[styles.summarySubLabel, { marginTop: 0, color: '#EF4444', height: 16 }]}>
-                                {/* "Poor" label from image? Or dynamic? "Tasks Poor" seems odd. 
-                                    The image shows "Tasks" title, then "Poor" in small text?
-                                    User said: "Performance Score ... Label: Tasks Poor". 
-                                    But also "Performance Label: Good/Average/Poor".
-                                    I will simulate the layout: Title "Tasks", then a small status text.
-                                */}
-                            </Text>
                             <Text style={styles.summaryValue}>{worker?.performancePercentage || 0}%</Text>
                             <Text style={[styles.summarySubLabel,
-                            (worker?.performanceLabel === 'Good') ? { color: '#10B981' } :
-                                (worker?.performanceLabel === 'Average') ? { color: '#F59E0B' } :
-                                    { color: '#EF4444' }
+                                (worker?.performanceLabel === 'Good') ? { color: '#10B981' } :
+                                    (worker?.performanceLabel === 'Average') ? { color: '#F59E0B' } :
+                                        { color: '#EF4444' }
                             ]}>
                                 {worker?.performanceLabel}
                             </Text>
                         </View>
 
-                    </ScrollView>
+                    </View>
                 </View>
 
-                {/* 2. Performance Overview Chart */}
+                {/* 3. Performance Overview Chart */}
                 <View style={styles.chartCard}>
                     <Text style={styles.sectionTitle}>Performance Overview</Text>
-                    <View style={{ height: 220, marginTop: 16 }}>
+                    <View style={{ height: 180, marginTop: 12 }}>
                         <BarChart
                             data={barChartData}
                             barWidth={32}
@@ -314,7 +340,32 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                     </View>
                 </View>
 
-                {/* 3. Trends Chart */}
+                {/* 4. Due Date vs Completion Pie Chart */}
+                {pieChartData.length > 0 && (
+                    <View style={styles.chartCard}>
+                        <Text style={styles.sectionTitle}>Due Date vs Completion Breakdown</Text>
+                        <View style={styles.pieChartContainer}>
+                            <PieChart
+                                data={pieChartData}
+                                width={width - 64}
+                                height={220}
+                                chartConfig={{
+                                    backgroundColor: '#fff',
+                                    backgroundGradientFrom: '#fff',
+                                    backgroundGradientTo: '#fff',
+                                    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                                }}
+                                accessor="population"
+                                backgroundColor="transparent"
+                                paddingLeft="15"
+                                center={[10, 50]}
+                                absolute
+                            />
+                        </View>
+                    </View>
+                )}
+
+                {/* 5. Trends Chart */}
                 {trendChartData && (
                     <View style={styles.chartCard}>
                         <View style={styles.chartHeader}>
@@ -337,7 +388,7 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                                 legend: trendChartData.legend
                             }}
                             width={width - 64} // Padding compensation
-                            height={220}
+                            height={180}
                             chartConfig={{
                                 backgroundColor: "#fff",
                                 backgroundGradientFrom: "#fff",
@@ -353,7 +404,7 @@ const WorkerDetailScreen: React.FC<WorkerDetailScreenProps> = ({ navigation, rou
                     </View>
                 )}
 
-                <View style={{ height: 40 }} />
+                <View style={{ height: 20 }} />
 
                 {activeDateField && (
                     <DateTimePicker
@@ -387,75 +438,130 @@ const styles = StyleSheet.create({
 
     scrollContent: { padding: 16 },
 
-    // Main Card (Profile + Stats)
-    mainCard: {
+    // Profile Card - Separate from stats
+    profileCard: {
         backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16,
         shadowColor: '#000',
         shadowOpacity: 0.05,
-        shadowRadius: 5,
+        shadowRadius: 4,
         elevation: 2
     },
 
     // Profile Section
-    profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    profileHeader: { flexDirection: 'row', alignItems: 'center' },
     avatar: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#FEE2E2', // Light Pink/Red
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#FEE2E2',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16
+        marginRight: 12
     },
-    avatarText: { fontSize: 28, color: '#991B1B', fontWeight: 'bold' },
-    avatarImage: { width: 64, height: 64, borderRadius: 32 },
+    avatarText: { fontSize: 24, color: '#991B1B', fontWeight: 'bold' },
+    avatarImage: { width: 56, height: 56, borderRadius: 28 },
 
     profileInfo: { flex: 1 },
-    profileName: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-    profileRole: { fontSize: 12, color: '#DC2626', fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
-    profilePhone: { fontSize: 14, color: '#6B7280', marginLeft: 4 },
+    profileName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
+    profileRole: { fontSize: 11, color: '#DC2626', fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 },
+    profilePhone: { fontSize: 13, color: '#6B7280', marginLeft: 4 },
 
-    statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start' },
-    statusActive: { backgroundColor: '#D1FAE5' }, // Green-100
+    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, alignSelf: 'flex-start' },
+    statusActive: { backgroundColor: '#D1FAE5' },
     statusInactive: { backgroundColor: '#F3F4F6' },
-    statusText: { fontSize: 12, fontWeight: '700', color: '#059669' }, // Green-700
+    statusText: { fontSize: 11, fontWeight: '700', color: '#059669' },
 
-    separator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: -20, marginBottom: 20 },
-
-    // Summary Row
-    summaryRow: { gap: 12, paddingBottom: 4 }, // Scrollable gap
-    summaryCard: {
-        width: 140, // Fixed width for nice horizontal scrolling
-        backgroundColor: '#FCFCFC',
+    // Stats Container - Separate card
+    statsContainer: {
+        backgroundColor: '#fff',
         borderRadius: 12,
         padding: 16,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2
+    },
+
+    // Summary Row - Equal width cards in single row
+    summaryRow: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between',
+        gap: 12
+    },
+    summaryCard: {
+        flex: 1,
+        backgroundColor: '#FCFCFC',
+        borderRadius: 10,
+        padding: 12,
         borderWidth: 1,
         borderColor: '#F3F4F6',
-        marginRight: 12,
-        alignItems: 'flex-start'
+        alignItems: 'center',
+        minHeight: 100
     },
-    iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-    summaryLabel: { fontSize: 12, fontWeight: '600', color: '#111827', marginBottom: 2 },
-    summaryValue: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
-    summarySubLabel: { fontSize: 10, color: '#6B7280' },
+    iconBox: { 
+        width: 28, 
+        height: 28, 
+        borderRadius: 6, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginBottom: 8 
+    },
+    summaryLabel: { 
+        fontSize: 10, 
+        fontWeight: '600', 
+        color: '#6B7280', 
+        textAlign: 'center',
+        marginBottom: 4,
+        lineHeight: 12
+    },
+    summaryValue: { 
+        fontSize: 20, 
+        fontWeight: 'bold', 
+        color: '#111827', 
+        marginBottom: 2,
+        textAlign: 'center'
+    },
+    summarySubLabel: { 
+        fontSize: 9, 
+        color: '#9CA3AF',
+        textAlign: 'center',
+        lineHeight: 11
+    },
 
-    // Charts
-    chartCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, elevation: 1 },
-    chartHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+    // Charts - More compact
+    chartCard: { 
+        backgroundColor: '#fff', 
+        borderRadius: 12, 
+        padding: 16, 
+        marginBottom: 16, 
+        shadowColor: '#000', 
+        shadowOpacity: 0.05, 
+        shadowRadius: 4,
+        elevation: 1 
+    },
+    chartHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
     sectionSubtitle: { fontSize: 12, color: '#9CA3AF', marginBottom: 12 },
     chartLabel: { fontSize: 10, color: '#4B5563', marginBottom: 4, width: 30, textAlign: 'center' },
+    
+    // Pie Chart Container
+    pieChartContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 12,
+    },
 
     // Date Filter
-    dateFilterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    dateInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-    dateText: { fontSize: 12, color: '#374151' },
+    dateFilterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    dateInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6 },
+    dateText: { fontSize: 11, color: '#374151' },
     arrow: { marginHorizontal: 8, color: '#9CA3AF' },
-    applyBtn: { backgroundColor: '#059669', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, marginLeft: 'auto' },
-    applyText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+    applyBtn: { backgroundColor: '#059669', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, marginLeft: 'auto' },
+    applyText: { color: '#fff', fontSize: 11, fontWeight: '600' },
 });
 
 export default WorkerDetailScreen;

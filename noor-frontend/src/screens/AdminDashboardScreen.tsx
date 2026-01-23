@@ -1,6 +1,7 @@
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import {
   View,
@@ -21,6 +22,7 @@ import {
   useWindowDimensions,
   KeyboardAvoidingView,
   Image,
+  ImageBackground,
   Linking,
   BackHandler,
 } from "react-native";
@@ -1105,6 +1107,11 @@ const AdminDashboardScreen = () => {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+
+  // Refs for scrolling
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const createNewSiteRef = React.useRef<View>(null);
+
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [activeProjectTab, setActiveProjectTab] = useState<
     "Tasks" | "Transactions" | "Materials" | "Files"
@@ -1126,7 +1133,8 @@ const AdminDashboardScreen = () => {
   const [newStageName, setNewStageName] = useState(""); // Custom phase name
   const [newStageSelectedFloor, setNewStageSelectedFloor] = useState(""); // Selected floor for new stage
   const [newStageCustomFloorInput, setNewStageCustomFloorInput] = useState(""); // Custom floor input
-  const [newStageCustomFloorVisible, setNewStageCustomFloorVisible] = useState(false); // Toggle custom floor input
+  const [newStageCustomFloorVisible, setNewStageCustomFloorVisible] =
+    useState(false); // Toggle custom floor input
 
   // Dynamic Floors Customization
   const [customFloorInputVisible, setCustomFloorInputVisible] = useState(false);
@@ -1134,7 +1142,8 @@ const AdminDashboardScreen = () => {
 
   // Predefined floors (standard floors - excludes "Other")
   // STRICT: Only these options appear in Choose Floor selector
-  const PREDEFINED_FLOORS = ["Ground Floor",
+  const PREDEFINED_FLOORS = [
+    "Ground Floor",
     "First Floor",
     "Second Floor",
     "Third Floor",
@@ -1272,6 +1281,15 @@ const AdminDashboardScreen = () => {
     role: "Worker",
     status: "Active",
   });
+  /* Validation States */
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  /* Password Visibility & Confirmation */
+  const [confirmEmpPassword, setConfirmEmpPassword] = useState("");
+  const [showEmpPassword, setShowEmpPassword] = useState(false);
+  const [showEmpConfirmPassword, setShowEmpConfirmPassword] = useState(false);
 
   const [taskDetailsMode, setTaskDetailsMode] = useState<{
     active: boolean;
@@ -1453,8 +1471,8 @@ const AdminDashboardScreen = () => {
       editBudgetModalVisible,
       addStageModalVisible,
       addMilestoneModalVisible,
-      employeeModalVisible
-    ])
+      employeeModalVisible,
+    ]),
   );
 
   useEffect(() => {
@@ -1659,15 +1677,17 @@ const AdminDashboardScreen = () => {
           ? Math.max(...projectPhases.map((p) => p.serial_number || 0)) + 1
           : 1;
 
-      console.log(`[PHASE-CREATE-DEBUG] Next Serial Number: ${nextSerialNumber}`);
-      console.log(`[PHASE-CREATE-DEBUG] Total existing phases: ${projectPhases.length}`);
+      console.log(
+        `[PHASE-CREATE-DEBUG] Next Serial Number: ${nextSerialNumber}`,
+      );
+      console.log(
+        `[PHASE-CREATE-DEBUG] Total existing phases: ${projectPhases.length}`,
+      );
 
       // ✅ CREATE PHASE ONLY - Minimal, explicit payload
       // Floor is optional - only include if explicitly selected by admin
       const finalFloor =
-        newStageSelectedFloor.trim().length > 0
-          ? newStageSelectedFloor
-          : null;
+        newStageSelectedFloor.trim().length > 0 ? newStageSelectedFloor : null;
 
       const phasePayload = {
         siteId: selectedSite.id,
@@ -1679,11 +1699,17 @@ const AdminDashboardScreen = () => {
         serialNumber: nextSerialNumber,
       };
 
-      console.log(`[PHASE-CREATE-DEBUG] Payload being sent:`, JSON.stringify(phasePayload, null, 2));
+      console.log(
+        `[PHASE-CREATE-DEBUG] Payload being sent:`,
+        JSON.stringify(phasePayload, null, 2),
+      );
 
       const phaseRes = await api.post("/phases", phasePayload);
 
-      console.log(`[PHASE-CREATE-DEBUG] Response received:`, JSON.stringify(phaseRes.data, null, 2));
+      console.log(
+        `[PHASE-CREATE-DEBUG] Response received:`,
+        JSON.stringify(phaseRes.data, null, 2),
+      );
 
       if (!phaseRes.data?.phaseId) {
         console.error(`[PHASE-CREATE-DEBUG] ❌ No phaseId in response`);
@@ -1692,13 +1718,14 @@ const AdminDashboardScreen = () => {
       }
 
       const createdPhaseId = phaseRes.data.phaseId;
-      console.log(`[PHASE-CREATE-DEBUG] ✅ Phase created with ID: ${createdPhaseId}`);
-      console.log(`[PHASE-CREATE-DEBUG] Phase Name in DB: "${trimmedPhaseName}"`);
-
-      showToast(
-        `Phase "${trimmedPhaseName}" created successfully`,
-        "success",
+      console.log(
+        `[PHASE-CREATE-DEBUG] ✅ Phase created with ID: ${createdPhaseId}`,
       );
+      console.log(
+        `[PHASE-CREATE-DEBUG] Phase Name in DB: "${trimmedPhaseName}"`,
+      );
+
+      showToast(`Phase "${trimmedPhaseName}" created successfully`, "success");
 
       // Reset and close modal
       setAddStageModalVisible(false);
@@ -1707,18 +1734,23 @@ const AdminDashboardScreen = () => {
       setNewStageCustomFloorInput("");
       setNewStageCustomFloorVisible(false);
 
-      console.log(`[PHASE-CREATE-DEBUG] Calling fetchProjectDetails to refresh...`);
+      console.log(
+        `[PHASE-CREATE-DEBUG] Calling fetchProjectDetails to refresh...`,
+      );
       // Refresh project data (explicit fetch)
       await fetchProjectDetails(selectedSite.id);
       console.log(`[PHASE-CREATE-DEBUG] Refresh complete`);
-
     } catch (error: any) {
       console.error(`[PHASE-CREATE-DEBUG] ❌ Exception:`, error.message);
       console.error(`[PHASE-CREATE-DEBUG] Full error:`, error);
       if (error.response?.data) {
-        console.error(`[PHASE-CREATE-DEBUG] Server response:`, error.response.data);
+        console.error(
+          `[PHASE-CREATE-DEBUG] Server response:`,
+          error.response.data,
+        );
       }
-      const errorMessage = error.response?.data?.message || "Failed to create phase";
+      const errorMessage =
+        error.response?.data?.message || "Failed to create phase";
       showToast(errorMessage, "error");
     }
   };
@@ -1928,7 +1960,7 @@ const AdminDashboardScreen = () => {
     visible: false,
     title: "",
     message: "",
-    onConfirm: () => { },
+    onConfirm: () => {},
   });
 
   const togglePhase = (phaseId: number) => {
@@ -2064,9 +2096,6 @@ const AdminDashboardScreen = () => {
     to: string;
   } | null>(null);
   const [dateRangePickerVisible, setDateRangePickerVisible] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const fetchCompletedTasksList = async (
     filter: string,
@@ -2108,13 +2137,15 @@ const AdminDashboardScreen = () => {
 
       // Also fetch all projects to calculate completed count properly
       const projectsRes = await api.get("/sites");
-      const allProjectsData = Array.isArray(projectsRes.data) ? projectsRes.data : projectsRes.data?.sites || [];
+      const allProjectsData = Array.isArray(projectsRes.data)
+        ? projectsRes.data
+        : projectsRes.data?.sites || [];
 
       // Count completed projects: status='completed' OR progress=100
       const completedCount = allProjectsData.filter((p: any) => {
-        const status = (p.status || '').toLowerCase();
+        const status = (p.status || "").toLowerCase();
         const progress = parseInt(p.progress) || 0;
-        return status === 'completed' || progress === 100;
+        return status === "completed" || progress === 100;
       }).length;
 
       // Update the response with accurate completed count
@@ -2398,10 +2429,10 @@ const AdminDashboardScreen = () => {
               >
                 {dateRange
                   ? `${new Date(
-                    dateRange.from,
-                  ).toLocaleDateString()} - ${new Date(
-                    dateRange.to,
-                  ).toLocaleDateString()}`
+                      dateRange.from,
+                    ).toLocaleDateString()} - ${new Date(
+                      dateRange.to,
+                    ).toLocaleDateString()}`
                   : "Select Date Range"}
               </Text>
               {dateRange && (
@@ -2706,19 +2737,27 @@ const AdminDashboardScreen = () => {
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Header with Back Button */}
-        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
           <TouchableOpacity
             onPress={() => setActiveTab("Dashboard")}
             style={{
               marginRight: 12,
               padding: 8,
               borderRadius: 20,
-              backgroundColor: "#f3f4f6"
+              backgroundColor: "#f3f4f6",
             }}
           >
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={{ fontSize: 20, fontWeight: "bold", color: "#111827" }}>Approvals</Text>
+          <Text style={{ fontSize: 20, fontWeight: "bold", color: "#111827" }}>
+            Approvals
+          </Text>
         </View>
 
         {/* Tab Switcher */}
@@ -2980,136 +3019,136 @@ const AdminDashboardScreen = () => {
                 ))
               )
             ) : // Materials Tab (Unchanged)
-              materials.length === 0 ? (
-                <View style={{ alignItems: "center", marginTop: 50 }}>
-                  <View
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      backgroundColor: "#F3F4F6",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 16,
-                    }}
-                  >
-                    <Ionicons name="cube-outline" size={32} color="#9CA3AF" />
-                  </View>
-                  <Text style={{ color: "#9ca3af", fontSize: 16 }}>
-                    No pending material requests
-                  </Text>
+            materials.length === 0 ? (
+              <View style={{ alignItems: "center", marginTop: 50 }}>
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    backgroundColor: "#F3F4F6",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Ionicons name="cube-outline" size={32} color="#9CA3AF" />
                 </View>
-              ) : (
-                materials.map((item: any) => (
-                  <View
-                    key={item.id}
-                    style={{
-                      backgroundColor: "#fff",
-                      padding: 16,
-                      borderRadius: 12,
-                      marginBottom: 12,
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      shadowColor: "#000",
-                      shadowOpacity: 0.05,
-                      shadowRadius: 3,
-                      elevation: 1,
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: "#111827",
-                        }}
-                      >
-                        {item.item_name || item.material_name}
-                      </Text>
-                      <Text
-                        style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}
-                      >
-                        Quantity:{" "}
-                        <Text style={{ fontWeight: "500" }}>{item.quantity}</Text>
-                      </Text>
-                      <Text
-                        style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
-                      >
-                        {item.site_name} • {item.employee_name}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#FEE2E2",
-                          borderRadius: 8,
-                        }}
-                        onPress={() => {
-                          setConfirmModal({
-                            visible: true,
-                            title: "Confirm Rejection",
-                            message:
-                              "Are you sure you want to reject this material request?",
-                            onConfirm: async () => {
-                              setConfirmModal((prev) => ({
-                                ...prev,
-                                visible: false,
-                              }));
-                              await handleRejectMaterial(item.id);
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#EF4444",
-                            fontSize: 12,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Reject
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#D1FAE5",
-                          borderRadius: 8,
-                        }}
-                        onPress={() => {
-                          setConfirmModal({
-                            visible: true,
-                            title: "Confirm Approval",
-                            message:
-                              "Are you sure you want to approve this material request?",
-                            onConfirm: async () => {
-                              setConfirmModal((prev) => ({
-                                ...prev,
-                                visible: false,
-                              }));
-                              await handleApproveMaterial(item.id);
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#10B981",
-                            fontSize: 12,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Approve
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                <Text style={{ color: "#9ca3af", fontSize: 16 }}>
+                  No pending material requests
+                </Text>
+              </View>
+            ) : (
+              materials.map((item: any) => (
+                <View
+                  key={item.id}
+                  style={{
+                    backgroundColor: "#fff",
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 12,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    shadowColor: "#000",
+                    shadowOpacity: 0.05,
+                    shadowRadius: 3,
+                    elevation: 1,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#111827",
+                      }}
+                    >
+                      {item.item_name || item.material_name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}
+                    >
+                      Quantity:{" "}
+                      <Text style={{ fontWeight: "500" }}>{item.quantity}</Text>
+                    </Text>
+                    <Text
+                      style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}
+                    >
+                      {item.site_name} • {item.employee_name}
+                    </Text>
                   </View>
-                ))
-              )}
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        backgroundColor: "#FEE2E2",
+                        borderRadius: 8,
+                      }}
+                      onPress={() => {
+                        setConfirmModal({
+                          visible: true,
+                          title: "Confirm Rejection",
+                          message:
+                            "Are you sure you want to reject this material request?",
+                          onConfirm: async () => {
+                            setConfirmModal((prev) => ({
+                              ...prev,
+                              visible: false,
+                            }));
+                            await handleRejectMaterial(item.id);
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#EF4444",
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Reject
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        backgroundColor: "#D1FAE5",
+                        borderRadius: 8,
+                      }}
+                      onPress={() => {
+                        setConfirmModal({
+                          visible: true,
+                          title: "Confirm Approval",
+                          message:
+                            "Are you sure you want to approve this material request?",
+                          onConfirm: async () => {
+                            setConfirmModal((prev) => ({
+                              ...prev,
+                              visible: false,
+                            }));
+                            await handleApproveMaterial(item.id);
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#10B981",
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Approve
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>
@@ -3712,12 +3751,13 @@ const AdminDashboardScreen = () => {
                 <div class="container">
                     <!-- Header -->
                     <div class="header">
-                        <h1 class="project-title">${formData.name || "Project Name"
-      }</h1>
+                        <h1 class="project-title">${
+                          formData.name || "Project Name"
+                        }</h1>
                         <p class="subtitle">Project Portfolio Report</p>
                         <p class="date">Generated on ${new Date().toLocaleDateString(
-        "en-GB",
-      )}</p>
+                          "en-GB",
+                        )}</p>
                     </div>
 
                     <div class="portfolio-grid">
@@ -3728,30 +3768,35 @@ const AdminDashboardScreen = () => {
                             
                             <div class="info-row">
                                 <div class="info-label">Project Name</div>
-                                <div class="info-value">${formData.name || "-"
-      }</div>
+                                <div class="info-value">${
+                                  formData.name || "-"
+                                }</div>
                             </div>
                             <div class="info-row">
                                 <div class="info-label">Project Location</div>
-                                <div class="info-value">${formData.address || "-"
-      }</div>
+                                <div class="info-value">${
+                                  formData.address || "-"
+                                }</div>
                             </div>
                             
                             <div style="margin-top: 40px;">
                                 <div class="info-row">
                                     <div class="info-label">Client Name</div>
-                                    <div class="info-value">${formData.clientName || "Not Specified"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientName || "Not Specified"
+                                    }</div>
                                 </div>
                                 <div class="info-row">
                                     <div class="info-label">Client Phone</div>
-                                    <div class="info-value">${formData.clientPhone || "-"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientPhone || "-"
+                                    }</div>
                                 </div>
                                 <div class="info-row">
                                     <div class="info-label">Client Email</div>
-                                    <div class="info-value">${formData.clientEmail || "-"
-      }</div>
+                                    <div class="info-value">${
+                                      formData.clientEmail || "-"
+                                    }</div>
                                 </div>
                             </div>
                         </div>
@@ -3779,8 +3824,8 @@ const AdminDashboardScreen = () => {
                                 <div class="info-row" style="margin-bottom: 10px;">
                                     <div class="info-label">Project Duration</div>
                                     <div class="info-value">${formatDate(
-        start,
-      )}  ➝  ${formatDate(end)}</div>
+                                      start,
+                                    )}  ➝  ${formatDate(end)}</div>
                                 </div>
                                 <div class="info-label">Total Days: <span style="color: #111827;">${durationDays}</span></div>
                             </div>
@@ -4050,21 +4095,92 @@ Project Team`;
   };
 
   const handleSaveEmployee = async () => {
+    // 1. Reset Errors
+    setEmailError("");
+    setPhoneError("");
+    setPasswordError("");
+
+    // 2. Validate Required Fields
     if (!newEmployee.name || !newEmployee.phone || !newEmployee.role) {
       showToast("Name, Phone, and Role are required", "error");
       return;
     }
 
     if (!editingEmployeeId && !newEmployee.password) {
-      showToast("Password is required for new employees", "error");
+      setPasswordError("❌ Password is required for new employees");
       return;
     }
 
+    if (
+      editingEmployeeId &&
+      newEmployee.password &&
+      newEmployee.password !== confirmEmpPassword
+    ) {
+      setPasswordError("❌ Passwords do not match");
+      return;
+    }
+
+    // 3. Strict Duplicate Validation (Client-Side)
+    let hasError = false;
+
+    // Helper to check duplicates against a user
+    const checkDuplicate = (u: any) => {
+      // Skip undefined users
+      if (!u) return;
+
+      // Skip self if editing
+      if (editingEmployeeId && u.id === editingEmployeeId) return;
+
+      // Phone Check
+      if (
+        u.phone &&
+        newEmployee.phone &&
+        u.phone.toString() === newEmployee.phone.toString()
+      ) {
+        setPhoneError(
+          "❌ This phone number is already assigned to another worker",
+        );
+        hasError = true;
+      }
+
+      // Email Check
+      if (
+        u.email &&
+        newEmployee.email &&
+        u.email.toLowerCase() === newEmployee.email.toLowerCase()
+      ) {
+        setEmailError("❌ This email is already in use");
+        hasError = true;
+      }
+
+      // Password Check (If visible/available in frontend)
+      if (
+        newEmployee.password &&
+        u.password &&
+        u.password === newEmployee.password
+      ) {
+        setPasswordError(
+          "❌ This password is already used by another user. Please choose a different password",
+        );
+        hasError = true;
+      }
+    };
+
+    // Check against all employees
+    employees.forEach(checkDuplicate);
+
+    // Check against current admin/user if not in employees list
+    if (user) {
+      // Only check if user is not already in the employees list (avoid double error)
+      const isUserInList = employees.some((e) => e.id === user.id);
+      if (!isUserInList) {
+        checkDuplicate(user);
+      }
+    }
+
+    if (hasError) return;
+
     try {
-      // Transform role to lowercase for backend consistency if needed,
-      // but backend enum supports lowercase. Let's keep consistent.
-      // Actually backend enum has 'admin', 'employee', 'supervisor', 'worker', 'engineer'.
-      // Frontend uses Title Case 'Admin', 'Supervisor'... Map it.
       const payload = {
         ...newEmployee,
         role: newEmployee.role.toLowerCase(), // Ensure lowercase for backend enum
@@ -4088,6 +4204,11 @@ Project Team`;
         role: "Worker",
         status: "Active",
       });
+      // Clear errors
+      setEmailError("");
+      setPhoneError("");
+      setPasswordError("");
+
       setEditingEmployeeId(null);
       fetchEmployees();
     } catch (error: any) {
@@ -4118,9 +4239,9 @@ Project Team`;
       role: mapRole(employee.role),
       status: employee.status === "Inactive" ? "Inactive" : "Active",
     });
-    setConfirmPassword("");
-    setShowPassword(false);
-    setShowConfirmPassword(false);
+    setConfirmEmpPassword("");
+    setShowEmpPassword(false);
+    setShowEmpConfirmPassword(false);
     setEditingEmployeeId(employee.id);
     setEmployeeModalVisible(true);
   };
@@ -4252,39 +4373,74 @@ Project Team`;
     }
   };
 
-  const renderEmployeeItem = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.employeeCard}
-      activeOpacity={0.7}
-      onPress={() => navigation.navigate("WorkerDetail", { workerId: item.id })}
-    >
-      <View style={styles.employeeInfo}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {item.name ? item.name.charAt(0).toUpperCase() : "?"}
-          </Text>
-        </View>
-        <View>
-          <Text style={styles.employeeName}>{item.name}</Text>
-          <Text style={styles.employeeRole}>{item.role}</Text>
-        </View>
-      </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => handleEditEmployee(item)}
+  const renderEmployeeItem = ({
+    item,
+    index,
+  }: {
+    item: any;
+    index: number;
+  }) => {
+    // Define modern playful yet professional gradient palettes
+    const gradients = [
+      ["#EFF6FF", "#DBEAFE"], // Blue
+      ["#F0FDF4", "#DCFCE7"], // Green
+      ["#FEF2F2", "#FEE2E2"], // Red
+      ["#FFFBEB", "#FEF3C7"], // Amber
+      ["#F3E8FF", "#E9D5FF"], // Purple
+    ];
+
+    // Cycle through gradients based on index
+    const currentGradient = gradients[index % gradients.length];
+
+    return (
+      <TouchableOpacity
+        style={styles.workerCardContainer}
+        activeOpacity={0.8}
+        onPress={() =>
+          navigation.navigate("WorkerDetail", { workerId: item.id })
+        }
+      >
+        <LinearGradient
+          colors={currentGradient as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.workerCardGradient}
         >
-          <MaterialIcons name="edit" size={20} color="#4B5563" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => handleDeleteEmployee(item.id, item.name)}
-        >
-          <MaterialIcons name="delete" size={20} color="#EF4444" />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+          <View style={styles.workerAvatar}>
+            <Text style={styles.workerAvatarLabel}>
+              {item.name ? item.name.charAt(0).toUpperCase() : "?"}
+            </Text>
+          </View>
+
+          <View style={styles.workerInfo}>
+            <Text style={styles.workerName}>{item.name}</Text>
+            <Text style={styles.workerRole}>{item.role}</Text>
+          </View>
+
+          <View style={styles.workerActions}>
+            <TouchableOpacity
+              style={styles.workerActionBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleEditEmployee(item);
+              }}
+            >
+              <MaterialIcons name="edit" size={20} color="#4B5563" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.workerActionBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDeleteEmployee(item.id, item.name);
+              }}
+            >
+              <MaterialIcons name="delete" size={20} color="#DC2626" />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
 
   const renderTaskDetailsPage = () => {
     if (!taskDetailsMode.active || !selectedTask) return null;
@@ -4373,8 +4529,8 @@ Project Team`;
                     styles.statusOption,
                     selectedTask.status === status && styles.statusOptionActive,
                     selectedTask.status === status &&
-                    status === "In Progress" &&
-                    styles.statusBtnProgress,
+                      status === "In Progress" &&
+                      styles.statusBtnProgress,
                     { flex: 1, alignItems: "center", paddingVertical: 12 },
                   ]}
                   onPress={() => setSelectedTask({ ...selectedTask, status })}
@@ -4383,7 +4539,7 @@ Project Team`;
                     style={[
                       styles.statusOptionText,
                       selectedTask.status === status &&
-                      styles.statusOptionTextActive,
+                        styles.statusOptionTextActive,
                     ]}
                   >
                     {status}
@@ -4492,19 +4648,6 @@ Project Team`;
                 </TouchableOpacity>
               </View>
             </View>
-
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
-              Amount / Budget
-            </Text>
-            <TextInput
-              style={styles.inputField}
-              value={selectedTask.amount?.toString() || ""}
-              onChangeText={(val) =>
-                setSelectedTask({ ...selectedTask, amount: val })
-              }
-              keyboardType="numeric"
-              placeholder="0.00"
-            />
           </View>
 
           <TouchableOpacity
@@ -4624,16 +4767,16 @@ Project Team`;
                     e.status === "Active" &&
                     !selectedTask.assigneeIds?.includes(e.id),
                 ).length === 0 && (
-                    <Text
-                      style={{
-                        textAlign: "center",
-                        color: "#6b7280",
-                        padding: 20,
-                      }}
-                    >
-                      No more employees to assign
-                    </Text>
-                  )}
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: "#6b7280",
+                      padding: 20,
+                    }}
+                  >
+                    No more employees to assign
+                  </Text>
+                )}
               </ScrollView>
               <TouchableOpacity
                 style={{
@@ -4657,35 +4800,17 @@ Project Team`;
   };
 
   return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0 },
-      ]}
-    >
-      {/* Background Pattern */}
-      <Image
-        source={require("../../assets/construction-bg.png")}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: "100%",
-          height: "100%",
-          opacity: 0.05,
-          zIndex: -1,
-        }}
-        resizeMode="repeat"
-      />
-      <StatusBar
-        barStyle={Platform.OS === "ios" ? "dark-content" : "default"}
-      />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
+      {/* Fixed Header */}
+      <LinearGradient
+        colors={["#FFFFFF", "#F8FAFC"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Noor Construction</Text>
           <Text style={styles.headerSubtitle}>ADMIN DASHBOARD</Text>
         </View>
@@ -4701,7 +4826,7 @@ Project Team`;
           >
             <Ionicons name="notifications-outline" size={24} color="#374151" />
             {unreadCount > 0 && (
-              <View style={styles.newNotificationBadge}>
+              <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </Text>
@@ -4709,102 +4834,57 @@ Project Team`;
             )}
           </TouchableOpacity>
 
-          {/* Profile Avatar Trigger */}
+          {/* Profile Avatar */}
           <TouchableOpacity
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: "#E5E7EB", // Light Gray
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: 12,
-            }}
+            style={styles.profileAvatar}
             onPress={() => {
               setProfileDropdownVisible(!profileDropdownVisible);
               setNotificationDropdownVisible(false);
             }}
           >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "600",
-                color: "#1F2937",
-              }}
-            >
-              A
+            <Text style={styles.profileAvatarText}>
+              {user?.name?.charAt(0)?.toUpperCase() || "A"}
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Profile Dropdown */}
       {profileDropdownVisible && (
         <TouchableOpacity
           activeOpacity={1}
-          style={{
-            position: "absolute",
-            top: 0, bottom: 0, left: 0, right: 0,
-            zIndex: 999,
-          }}
+          style={styles.dropdownOverlay}
           onPress={() => setProfileDropdownVisible(false)}
         >
-          <View
-            style={{
-              position: "absolute",
-              top: 60,
-              right: 20,
-              width: 200,
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 12,
-              elevation: 8,
-              zIndex: 1000,
-              padding: 8,
-            }}
-          >
-            {/* Admin Profile Option */}
+          <View style={styles.profileDropdown}>
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: 12,
-                borderRadius: 8,
-              }}
+              style={styles.dropdownItem}
               onPress={() => {
                 setProfileDropdownVisible(false);
                 navigation.navigate("AdminProfile");
               }}
             >
-              <View style={{ width: 32, alignItems: 'center' }}>
-                <Ionicons name="person-circle-outline" size={20} color="#374151" />
-              </View>
-              <Text style={{ fontSize: 14, color: "#374151", fontWeight: "500" }}>Admin Profile</Text>
+              <Ionicons
+                name="person-circle-outline"
+                size={20}
+                color="#374151"
+              />
+              <Text style={styles.dropdownItemText}>Admin Profile</Text>
             </TouchableOpacity>
 
-            <View style={{ height: 1, backgroundColor: "#F3F4F6", marginVertical: 4 }} />
+            <View style={styles.dropdownSeparator} />
 
-            {/* Logout Option */}
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: 12,
-                borderRadius: 8,
-              }}
+              style={styles.dropdownItem}
               onPress={() => {
                 setProfileDropdownVisible(false);
                 logout();
-                navigation.navigate("Login" as never);
               }}
             >
-              <View style={{ width: 32, alignItems: 'center' }}>
-                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              </View>
-              <Text style={{ fontSize: 14, color: "#EF4444", fontWeight: "600" }}>Logout</Text>
+              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              <Text style={[styles.dropdownItemText, { color: "#EF4444" }]}>
+                Logout
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -4903,397 +4983,586 @@ Project Team`;
       )}
 
       {/* Main Content Area */}
-      <View style={styles.newMainContent}>
+      <View style={{ flex: 1, width: "100%", backgroundColor: "#F9FAFB" }}>
         {activeTab === "Approvals" && renderApprovals()}
         {activeTab === "Completed" && renderCompletedTasks()}
 
         {activeTab === "Dashboard" && (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 40 }}
+          <ImageBackground
+            source={require("../../assets/construction-bg.png")}
+            style={styles.scrollContainer}
+            imageStyle={{ opacity: 0.05, resizeMode: "repeat" }}
           >
-            {statsLoading ? (
-              <ActivityIndicator
-                size="large"
-                color="#8B0000"
-                style={{ marginTop: 50 }}
-              />
-            ) : dashboardStats ? (
-              <>
-                {/* 1. TOP ROW: High Level Metrics */}
-                {/* 1. TOP ROW: High Level Metrics */}
-                <View style={styles.metricsRow}>
-                  <TouchableOpacity
-                    style={styles.metricCard}
-                    onPress={() => setDashboardSearchQuery("")}
-                  >
-                    <View style={styles.totalProjectsHeader}>
-                      <View>
-                        <Text style={styles.metricLabel}>Total Projects</Text>
-                        <Text style={styles.metricValue}>
-                          {dashboardStats.projects.total}
-                        </Text>
-                        <View style={styles.metricSubRow}>
-                          <Text style={styles.metricSubText}>
-                            {dashboardStats.projects.completed} Completed
-                          </Text>
-                        </View>
-                      </View>
-                      {dashboardStats.projects.completed > 0 && (
-                        <TouchableOpacity
-                          onPress={() => navigation.navigate('CompletedProjects')}
-                          style={styles.completedTag}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.completedTagText}>
-                            Completed {dashboardStats.projects.completed}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.metricCard}
-                    onPress={() => setActiveTab("Workers")}
-                  >
-                    <Text style={styles.metricLabel}>Total Employees</Text>
-                    <Text style={styles.metricValue}>
-                      {dashboardStats.employees.total}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* 2. SECOND ROW: Remaining Cards */}
-                <View style={styles.metricsRow}>
-                  <TouchableOpacity
-                    style={styles.metricCard}
-                    onPress={() => {
-                      setActiveTab("Approvals");
-                      setApprovalTab("Tasks");
-                    }}
-                  >
-                    <Text style={styles.metricLabel}>Waiting Approval</Text>
-                    <Text style={[styles.metricValue, { color: "#D97706" }]}>
-                      {dashboardStats.tasks.waitingApproval}
-                    </Text>
-                    <View style={styles.metricSubRow}>
-                      <Text style={styles.metricSubText}>
-                        {dashboardStats.materials.pending} Materials
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.metricCard, styles.cardGreen]}
-                    onPress={() => {
-                      setActiveTab("Completed");
-                      fetchCompletedTasksList(completedTaskFilter);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={{
-                        flexDirection: isMobile ? "column" : "row",
-                        justifyContent: "space-between",
-                        alignItems: isMobile ? "flex-start" : "center",
-                        gap: isMobile ? 8 : 0,
+            <ScrollView
+              ref={scrollViewRef}
+              style={{ flex: 1, width: "100%" }}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {statsLoading ? (
+                <ActivityIndicator
+                  size="large"
+                  color="#3B82F6"
+                  style={{ marginTop: 50 }}
+                />
+              ) : dashboardStats ? (
+                <>
+                  {/* Dashboard Metric Cards */}
+                  <View style={styles.metricsGrid}>
+                    {/* Total Projects Card - Light Blue Gradient */}
+                    <TouchableOpacity
+                      style={styles.metricCard}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        // Scroll to "Create New Site" section
+                        createNewSiteRef.current?.measureInWindow((x, y) => {
+                          scrollViewRef.current?.scrollTo({
+                            y: y - 20,
+                            animated: true,
+                          });
+                        });
                       }}
                     >
-                      <Text style={[styles.metricLabel, { marginBottom: 0 }]}>
-                        Completed Tasks
-                      </Text>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          backgroundColor: "#F3F4F6",
-                          borderRadius: 8,
-                          padding: 3,
-                        }}
+                      <LinearGradient
+                        colors={["#EFF6FF", "#DBEAFE"]} // Blue-50 to Blue-100
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.metricCardGradient}
                       >
-                        {["day", "week", "month", "year"].map((f) => {
-                          const labelMap: Record<string, string> = {
-                            day: "1D",
-                            week: "1W",
-                            month: "1M",
-                            year: "1Y",
-                          };
-                          return (
-                            <TouchableOpacity
-                              key={f}
-                              onPress={() => setCompletedTaskFilter(f as any)}
+                        <View style={styles.metricHeader}>
+                          <View
+                            style={[
+                              styles.metricIcon,
+                              { backgroundColor: "#fff" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="business-outline"
+                              size={24}
+                              color="#3B82F6"
+                            />
+                          </View>
+                          <Text
+                            style={[styles.metricValue, { color: "#1E3A8A" }]}
+                          >
+                            {dashboardStats.projects.total}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.metricLabel, { color: "#1E40AF" }]}
+                        >
+                          Total Projects
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setDashboardSearchQuery("completed");
+                            // Optionally scroll to projects section or filter
+                          }}
+                          style={{
+                            backgroundColor: "#10B981",
+                            paddingHorizontal: 12,
+                            paddingVertical: 4,
+                            borderRadius: 12,
+                            marginTop: 8,
+                            alignSelf: "flex-start",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <View
+                            style={{
+                              backgroundColor: "#fff",
+                              width: 20,
+                              height: 20,
+                              borderRadius: 10,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Text
                               style={{
-                                paddingHorizontal: 8,
-                                paddingVertical: 3,
-                                borderRadius: 6,
-                                backgroundColor:
-                                  completedTaskFilter === f
-                                    ? "#fff"
-                                    : "transparent",
-                                shadowColor:
-                                  completedTaskFilter === f
-                                    ? "#000"
-                                    : "transparent",
-                                shadowOffset: { width: 0, height: 1 },
-                                shadowOpacity:
-                                  completedTaskFilter === f ? 0.1 : 0,
-                                shadowRadius: 1,
-                                elevation: completedTaskFilter === f ? 1 : 0,
+                                fontSize: 12,
+                                fontWeight: "700",
+                                color: "#10B981",
                               }}
                             >
-                              <Text
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: "600",
-                                  color:
-                                    completedTaskFilter === f
-                                      ? "#059669"
-                                      : "#6B7280",
-                                }}
-                              >
-                                {labelMap[f]}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-                    <Text style={[styles.metricValue, { marginTop: 8 }]}>
-                      {completedTasksCount}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                              {dashboardStats.projects.completed}
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "600",
+                              color: "#fff",
+                            }}
+                          >
+                            Completed
+                          </Text>
+                        </TouchableOpacity>
+                      </LinearGradient>
+                    </TouchableOpacity>
 
-                {/* 3. THIRD ROW: Overall Report */}
-                <View style={styles.metricsRow}>
+                    {/* Total Employees Card - Light Violet Gradient */}
+                    <TouchableOpacity
+                      style={styles.metricCard}
+                      onPress={() => setActiveTab("Workers")}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={["#F5F3FF", "#EDE9FE"]} // Violet-50 to Violet-100
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.metricCardGradient}
+                      >
+                        <View style={styles.metricHeader}>
+                          <View
+                            style={[
+                              styles.metricIcon,
+                              { backgroundColor: "#fff" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="people-outline"
+                              size={24}
+                              color="#8B5CF6"
+                            />
+                          </View>
+                          <Text
+                            style={[styles.metricValue, { color: "#4C1D95" }]}
+                          >
+                            {dashboardStats.employees.total}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.metricLabel, { color: "#5B21B6" }]}
+                        >
+                          Total Employees
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+
+                    {/* Waiting Approval Card - Light Amber/Orange Gradient */}
+                    <TouchableOpacity
+                      style={styles.metricCard}
+                      onPress={() => {
+                        setActiveTab("Approvals");
+                        setApprovalTab("Tasks");
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={["#FFFBEB", "#FEF3C7"]} // Amber-50 to Amber-100
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.metricCardGradient}
+                      >
+                        <View style={styles.metricHeader}>
+                          <View
+                            style={[
+                              styles.metricIcon,
+                              { backgroundColor: "#fff" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={24}
+                              color="#F59E0B"
+                            />
+                          </View>
+                          <Text
+                            style={[styles.metricValue, { color: "#78350F" }]}
+                          >
+                            {dashboardStats.tasks.waitingApproval}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.metricLabel, { color: "#92400E" }]}
+                        >
+                          Waiting Approval
+                        </Text>
+                        <Text
+                          style={[styles.metricSubtext, { color: "#D97706" }]}
+                        >
+                          {dashboardStats.materials.pending} Materials
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+
+                    {/* Completed Tasks Card - Light Emerald Gradient */}
+                    <TouchableOpacity
+                      style={styles.metricCard}
+                      onPress={() => {
+                        setActiveTab("Completed");
+                        fetchCompletedTasksList(completedTaskFilter);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={["#ECFDF5", "#D1FAE5"]} // Emerald-50 to Emerald-100
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.metricCardGradient}
+                      >
+                        <View style={styles.metricHeader}>
+                          <View
+                            style={[
+                              styles.metricIcon,
+                              { backgroundColor: "#fff" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="checkmark-circle-outline"
+                              size={24}
+                              color="#10B981"
+                            />
+                          </View>
+                          <Text
+                            style={[styles.metricValue, { color: "#064E3B" }]}
+                          >
+                            {completedTasksCount}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.metricLabel, { color: "#065F46" }]}
+                        >
+                          Completed Tasks
+                        </Text>
+
+                        {/* Filter Pills - Updates for Light Background */}
+                        <View style={styles.filterPills}>
+                          {["day", "week", "month", "year"].map((f) => {
+                            const labelMap: Record<string, string> = {
+                              day: "1D",
+                              week: "1W",
+                              month: "1M",
+                              year: "1Y",
+                            };
+                            const isActive = completedTaskFilter === f;
+                            return (
+                              <TouchableOpacity
+                                key={f}
+                                onPress={() => setCompletedTaskFilter(f as any)}
+                                style={[
+                                  styles.filterPill,
+                                  {
+                                    backgroundColor: isActive
+                                      ? "#10B981"
+                                      : "#fff",
+                                    borderWidth: 1,
+                                    borderColor: isActive
+                                      ? "#10B981"
+                                      : "#A7F3D0",
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.filterPillText,
+                                    {
+                                      color: isActive ? "#fff" : "#047857",
+                                      fontWeight: isActive ? "700" : "600",
+                                    },
+                                  ]}
+                                >
+                                  {labelMap[f]}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Overall Report Action Card */}
                   <TouchableOpacity
-                    style={[
-                      styles.metricCard,
-                      {
-                        backgroundColor: "#F0F9FF",
-                        borderColor: "#BAE6FD",
-                        borderWidth: 1,
-                      },
-                    ]}
                     onPress={() => navigation.navigate("OverallReport")}
+                    activeOpacity={0.9}
+                    style={{ marginBottom: 20 }}
                   >
+                    <LinearGradient
+                      colors={["#1E3A8A", "#2563EB", "#60A5FA"]} // A nice professional blue gradient
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.actionCardGradient}
+                    >
+                      <View style={styles.actionCardIconContainer}>
+                        <Ionicons name="stats-chart" size={32} color="#fff" />
+                      </View>
+                      <View style={styles.actionCardContent}>
+                        <Text style={styles.actionCardTitleLight}>
+                          Overall Report
+                        </Text>
+                        <Text style={styles.actionCardDescriptionLight}>
+                          View comprehensive company status, financials, and
+                          project summaries
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="arrow-forward-circle"
+                        size={32}
+                        color="#fff"
+                        style={{ opacity: 0.8 }}
+                      />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  {/* 3. THIRD ROW: Overall Report */}
+                  <Text style={[styles.sectionHeaderTitle, { marginTop: 30 }]}>
+                    All Active Projects
+                  </Text>
+                  <View
+                    ref={createNewSiteRef}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginVertical: 15,
+                      gap: 12,
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: "#2563EB", // Primary Blue
+                        height: 44,
+                        paddingHorizontal: 20,
+                        borderRadius: 22,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        shadowColor: "#2563EB",
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 8,
+                        elevation: 4,
+                      }}
+                      onPress={() => {
+                        setIsEditing(false);
+                        setEditingSiteId(null);
+                        setCreateModalVisible(true);
+                      }}
+                    >
+                      <Ionicons name="add" size={20} color="#fff" />
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        Create New Site
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#fff",
+                        borderRadius: 22,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        height: 44,
+                        borderWidth: 1,
+                        borderColor: "#E5E7EB",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 4,
+                        elevation: 2,
+                      }}
+                    >
+                      <Ionicons name="search" size={20} color="#9ca3af" />
+                      <TextInput
+                        style={{
+                          flex: 1,
+                          marginLeft: 8,
+                          fontSize: 14,
+                          color: "#111827",
+                        }}
+                        placeholder="Search..."
+                        placeholderTextColor="#9ca3af"
+                        value={dashboardSearchQuery}
+                        onChangeText={setDashboardSearchQuery}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Completed Projects Header */}
+                  {dashboardSearchQuery.toLowerCase() === "completed" && (
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 10,
-                        marginBottom: 8,
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                        backgroundColor: "#ECFDF5",
+                        borderLeftWidth: 4,
+                        borderLeftColor: "#10B981",
+                        marginBottom: 12,
                       }}
                     >
-                      <View
+                      <TouchableOpacity
+                        onPress={() => setDashboardSearchQuery("")}
                         style={{
+                          marginRight: 12,
                           padding: 8,
                           backgroundColor: "#fff",
                           borderRadius: 8,
                         }}
                       >
-                        <Ionicons
-                          name="bar-chart-outline"
-                          size={24}
-                          color="#0284C7"
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.metricLabel,
-                          { marginBottom: 0, color: "#0369A1" },
-                        ]}
-                      >
-                        Overall Report
-                      </Text>
-                    </View>
-                    <Text style={[styles.metricSubText, { color: "#0C4A6E" }]}>
-                      View comprehensive company status, financials, and project
-                      summaries.
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* 3. DETAILED METRICS GRID */}
-
-                {/* Keep Active Projects List below if space? or Hide it? 
-                                    The request said "Admin can see full operational status at a glance". 
-                                    Maybe the list is less important now, but let's keep it as "Active Projects List" section at very bottom if user wants detailed drilldown.
-                                */}
-                <Text style={[styles.sectionHeaderTitle, { marginTop: 30 }]}>
-                  All Active Projects
-                </Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginVertical: 15,
-                    gap: 12,
-                  }}
-                >
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: "#2563EB", // Primary Blue
-                      paddingVertical: 10,
-                      paddingHorizontal: 16,
-                      borderRadius: 20,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                    onPress={() => {
-                      setIsEditing(false);
-                      setEditingSiteId(null);
-                      setCreateModalVisible(true);
-                    }}
-                  >
-                    <Ionicons name="add" size={20} color="#fff" />
-                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                      Create New Site
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#fff",
-                      borderRadius: 20,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingHorizontal: 12,
-                      height: 44,
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                    }}
-                  >
-                    <Ionicons name="search" size={20} color="#9ca3af" />
-                    <TextInput
-                      style={{
-                        flex: 1,
-                        marginLeft: 8,
-                        fontSize: 14,
-                        color: "#111827",
-                      }}
-                      placeholder="Search..."
-                      placeholderTextColor="#9ca3af"
-                      value={dashboardSearchQuery}
-                      onChangeText={setDashboardSearchQuery}
-                    />
-                    <TouchableOpacity>
-                      <Ionicons
-                        name="options-outline"
-                        size={20}
-                        color="#374151"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                {sites
-                  .filter((s) =>
-                    s.name
-                      .toLowerCase()
-                      .includes(dashboardSearchQuery.toLowerCase()),
-                  )
-                  .map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.newProjectRow}
-                      onPress={() => {
-                        setSelectedSite(item);
-                        fetchProjectDetails(item.id);
-                        setProjectModalVisible(true);
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.newProjectName}>{item.name}</Text>
-                        <Text style={styles.newProjectLocation}>
-                          {item.location || "No location"}
-                        </Text>
-                      </View>
-
-                      {/* Notification Badge */}
-                      {item.pending_approvals_count &&
-                        item.pending_approvals_count > 0 ? (
-                        <View
+                        <Ionicons name="arrow-back" size={20} color="#10B981" />
+                      </TouchableOpacity>
+                      <View>
+                        <Text
                           style={{
-                            backgroundColor: "#EF4444",
-                            borderRadius: 12,
-                            minWidth: 24,
-                            height: 24,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            paddingHorizontal: 8,
-                            marginRight: 8,
+                            fontSize: 18,
+                            fontWeight: "700",
+                            color: "#065F46",
                           }}
                         >
-                          <Text
-                            style={{
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {item.pending_approvals_count}
+                          Completed Projects
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#059669",
+                            marginTop: 2,
+                          }}
+                        >
+                          {
+                            sites.filter(
+                              (s) => s.completion_status === "COMPLETED",
+                            ).length
+                          }{" "}
+                          project(s) completed
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {sites
+                    .filter((s) => {
+                      // Filter by completion status if search is "completed"
+                      if (dashboardSearchQuery.toLowerCase() === "completed") {
+                        return s.completion_status === "COMPLETED";
+                      }
+                      // Otherwise filter by name
+                      return s.name
+                        .toLowerCase()
+                        .includes(dashboardSearchQuery.toLowerCase());
+                    })
+                    .map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={styles.newProjectRow}
+                        onPress={() => {
+                          setSelectedSite(item);
+                          fetchProjectDetails(item.id);
+                          setProjectModalVisible(true);
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.newProjectName}>{item.name}</Text>
+                          <Text style={styles.newProjectLocation}>
+                            {item.location || "No location"}
                           </Text>
                         </View>
-                      ) : null}
 
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#9ca3af"
-                      />
-                    </TouchableOpacity>
-                  ))}
-              </>
-            ) : (
-              <Text>No statistics available</Text>
-            )}
-          </ScrollView>
+                        {/* Notification Badge */}
+                        {item.pending_approvals_count &&
+                        item.pending_approvals_count > 0 ? (
+                          <View
+                            style={{
+                              backgroundColor: "#EF4444",
+                              borderRadius: 12,
+                              minWidth: 24,
+                              height: 24,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              paddingHorizontal: 8,
+                              marginRight: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {item.pending_approvals_count}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Completion Badge */}
+                        {item.completion_status === "COMPLETED" && (
+                          <View
+                            style={{
+                              backgroundColor: "#10B981",
+                              borderRadius: 12,
+                              paddingHorizontal: 10,
+                              paddingVertical: 4,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                              marginRight: 8,
+                            }}
+                          >
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={16}
+                              color="#fff"
+                            />
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontSize: 11,
+                                fontWeight: "600",
+                              }}
+                            >
+                              Completed
+                            </Text>
+                          </View>
+                        )}
+
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color="#9ca3af"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                </>
+              ) : (
+                <Text>No statistics available</Text>
+              )}
+            </ScrollView>
+          </ImageBackground>
         )}
         {/* WORKERS TAB - Repurposed for Full Page Views if needed */}
         {activeTab === "Workers" &&
           (taskDetailsMode.active ? (
             renderTaskDetailsPage()
           ) : (
-            <View style={{ flex: 1, padding: 20 }}>
+            <View
+              style={[
+                styles.workersContainer,
+                isMobile && styles.workersContainerMobile,
+              ]}
+            >
               <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 20,
-                }}
+                style={[
+                  styles.workersHeader,
+                  isMobile && styles.workersHeaderMobile,
+                ]}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
+                <View style={styles.workersTitleGroup}>
                   <TouchableOpacity onPress={() => setActiveTab("Dashboard")}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                   </TouchableOpacity>
-                  <Text
-                    style={{
-                      fontSize: 24,
-                      fontWeight: "700",
-                      color: "#111827",
-                    }}
-                  >
-                    Workers
-                  </Text>
+                  <Text style={styles.workersTitle}>Workers</Text>
                 </View>
+
                 <TouchableOpacity
-                  style={{
-                    backgroundColor: "#8B0000",
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
+                  style={[
+                    styles.addWorkerButton,
+                    isMobile && { width: "100%" },
+                  ]}
                   onPress={() => {
                     setNewEmployee({
                       name: "",
@@ -5303,33 +5572,39 @@ Project Team`;
                       role: "Worker",
                       status: "Active",
                     });
-                    setConfirmPassword("");
-                    setShowPassword(false);
-                    setShowConfirmPassword(false);
+                    setConfirmEmpPassword("");
+                    setShowEmpPassword(false);
+                    setShowEmpConfirmPassword(false);
                     setEditingEmployeeId(null);
                     setEmployeeModalVisible(true);
                   }}
+                  activeOpacity={0.8}
                 >
                   <Ionicons name="add" size={20} color="#fff" />
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>
-                    Add Worker
-                  </Text>
+                  <Text style={styles.addWorkerButtonText}>Add Worker</Text>
                 </TouchableOpacity>
               </View>
 
-              <FlatList
-                data={employees}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderEmployeeItem}
-                contentContainerStyle={{ paddingBottom: 80 }}
-                ListEmptyComponent={
-                  <View style={{ alignItems: "center", marginTop: 50 }}>
-                    <Text style={{ color: "#6b7280" }}>
-                      No employees found.
-                    </Text>
-                  </View>
-                }
-              />
+              <View style={styles.workerListWrapper}>
+                <FlatList
+                  data={employees}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={renderEmployeeItem}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  ListEmptyComponent={
+                    <View style={styles.emptyWorkerState}>
+                      <Ionicons
+                        name="people-outline"
+                        size={48}
+                        color="#D1D5DB"
+                      />
+                      <Text style={styles.emptyWorkerText}>
+                        No workers found. Add a worker to get started.
+                      </Text>
+                    </View>
+                  }
+                />
+              </View>
             </View>
           ))}
       </View>
@@ -5478,9 +5753,7 @@ Project Team`;
                           const totalTasks = tasksInPhase.length;
                           const progress =
                             totalTasks > 0
-                              ? Math.round(
-                                (completedTasks / totalTasks) * 100,
-                              )
+                              ? Math.round((completedTasks / totalTasks) * 100)
                               : 0;
 
                           return (
@@ -5504,73 +5777,66 @@ Project Team`;
                               ]}
                             >
                               <TouchableOpacity
-                                style={[
-                                  {
-                                    flexDirection: "row",
-                                    alignItems: "flex-start", // Important for multiline
-                                    justifyContent: "space-between",
-                                    padding: 16,
-                                    backgroundColor: "#E0F2FE", // Sky-100
-                                    borderLeftWidth: isExpanded ? 4 : 4,
-                                    borderLeftColor: "#38BDF8", // Sky-400
-                                  },
-                                  isMobile && {
-                                    flexDirection: "column",
-                                    alignItems: "stretch",
-                                    gap: 16,
-                                    paddingVertical: 18, // Extra padding for mobile
-                                    paddingHorizontal: 16,
-                                  },
-                                ]}
+                                style={{
+                                  flexDirection: "column",
+                                  padding: 16,
+                                  backgroundColor: "#E0F2FE", // Sky-100
+                                  borderLeftWidth: 4,
+                                  borderLeftColor: "#38BDF8", // Sky-400
+                                }}
                                 onPress={() => togglePhase(phase.id)}
                                 activeOpacity={0.9}
                               >
+                                {/** Header Row: Index + Title/Badge + Icons **/}
                                 <View
                                   style={{
                                     flexDirection: "row",
-                                    alignItems: "flex-start", // Fix overlap
-                                    gap: 14,
-                                    width: isMobile ? "100%" : "auto",
-                                    flex: isMobile ? 0 : 1,
+                                    alignItems: "flex-start",
+                                    justifyContent: "space-between",
                                   }}
                                 >
+                                  {/* Left: Index + Title Group */}
                                   <View
                                     style={{
-                                      width: 32,
-                                      height: 32,
-                                      borderRadius: 16,
-                                      backgroundColor: "#FFFFFF",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      marginTop: 2,
+                                      flexDirection: "row",
+                                      alignItems: "flex-start",
+                                      flex: 1,
+                                      marginRight: 8,
                                     }}
                                   >
-                                    <Text
-                                      style={{
-                                        fontSize: 14,
-                                        fontWeight: "700",
-                                        color: "#38BDF8",
-                                      }}
-                                    >
-                                      {index + 1}
-                                    </Text>
-                                  </View>
-                                  <View style={{ flex: 1 }}>
+                                    {/* Index Badge */}
                                     <View
                                       style={{
-                                        flexDirection: "row",
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 16,
+                                        backgroundColor: "#FFFFFF",
                                         alignItems: "center",
-                                        gap: 8,
-                                        marginBottom: 10,
-                                        flexWrap: "wrap",
+                                        justifyContent: "center",
+                                        marginTop: 2,
+                                        marginRight: 12,
                                       }}
                                     >
                                       <Text
                                         style={{
-                                          fontSize: 15,
+                                          fontSize: 14,
                                           fontWeight: "700",
-                                          color: "#0F172A",
-                                          lineHeight: 24,
+                                          color: "#38BDF8",
+                                        }}
+                                      >
+                                        {index + 1}
+                                      </Text>
+                                    </View>
+
+                                    {/* Title & Floor */}
+                                    <View style={{ flex: 1 }}>
+                                      <Text
+                                        style={{
+                                          fontSize: 16,
+                                          fontWeight: "700",
+                                          color: "#0369A1",
+                                          marginBottom: 4,
+                                          lineHeight: 22,
                                         }}
                                       >
                                         {phase.name}
@@ -5580,19 +5846,18 @@ Project Team`;
                                         phase.floor_name !== "Main Project" && (
                                           <View
                                             style={{
-                                              backgroundColor: "#E0E7FF",
-                                              paddingHorizontal: 10,
-                                              paddingVertical: 4,
+                                              backgroundColor: "#BAE6FD",
+                                              paddingHorizontal: 8,
+                                              paddingVertical: 2,
                                               borderRadius: 12,
-                                              borderWidth: 0.5,
-                                              borderColor: "#C7D2FE",
+                                              alignSelf: "flex-start",
                                             }}
                                           >
                                             <Text
                                               style={{
                                                 fontSize: 11,
                                                 fontWeight: "600",
-                                                color: "#4338CA",
+                                                color: "#0284C7",
                                               }}
                                             >
                                               {phase.floor_name}
@@ -5600,109 +5865,40 @@ Project Team`;
                                           </View>
                                         )}
                                     </View>
-                                    <View
+                                  </View>
+
+                                  {/* Right: Icons */}
+                                  <View
+                                    style={{ flexDirection: "row", gap: 4 }}
+                                  >
+                                    <TouchableOpacity
                                       style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        gap: 8,
+                                        padding: 4,
+                                        backgroundColor: "#fff",
+                                        borderRadius: 8,
+                                      }}
+                                      onPress={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedStageOption({
+                                          id: phase.id,
+                                          name: phase.name,
+                                          floor:
+                                            phase.floor_name || "Main Project",
+                                          serial_number: phase.serial_number,
+                                        });
+                                        setStageOptionsVisible(true);
                                       }}
                                     >
-                                      <Text
-                                        style={{
-                                          fontSize: 12,
-                                          color: "#64748B",
-                                          fontWeight: "500",
-                                        }}
-                                      >
-                                        {completedTasks}/{totalTasks}{" "}
-                                        Completed ·
-                                        <Text
-                                          style={{
-                                            color: "#38BDF8",
-                                            fontWeight: "700",
-                                          }}
-                                        >
-                                          {progress}%
-                                        </Text>
-                                      </Text>
-                                      <View
-                                        style={{
-                                          width: 1,
-                                          height: 12,
-                                          backgroundColor: "#CBD5E1",
-                                        }}
+                                      <Ionicons
+                                        name="ellipsis-vertical"
+                                        size={18}
+                                        color="#0284C7"
                                       />
-                                      <View
-                                        style={{
-                                          flexDirection: "row",
-                                          alignItems: "center",
-                                          gap: 4,
-                                        }}
-                                      >
-                                        <Text
-                                          style={{
-                                            fontSize: 12,
-                                            color: "#64748B",
-                                            fontWeight: "500",
-                                          }}
-                                        >
-                                          ₹
-                                          {(
-                                            phase.used_amount || 0
-                                          ).toLocaleString("en-IN")}{" "}
-                                          / ₹
-                                          {(
-                                            phase.budget || 0
-                                          ).toLocaleString("en-IN")}
-                                        </Text>
-                                      </View>
-                                    </View>
-                                  </View>
-                                </View>
-
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    justifyContent: "flex-end",
-                                    width: isMobile ? "100%" : "auto",
-                                    paddingTop: isMobile ? 8 : 0,
-                                    borderTopWidth: isMobile ? 1 : 0,
-                                    borderTopColor: isMobile
-                                      ? "#E2E8F0"
-                                      : "transparent",
-                                  }}
-                                >
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.iconButton,
-                                      {
-                                        backgroundColor: "#FFFFFF",
-                                        borderRadius: 8,
-                                      },
-                                    ]}
-                                    onPress={() => {
-                                      setSelectedStageOption({
-                                        id: phase.id,
-                                        name: phase.name,
-                                        floor: phase.floor_name || "Main Project",
-                                        serial_number: phase.serial_number,
-                                      });
-                                      setStageOptionsVisible(true);
-                                    }}
-                                  >
-                                    <Ionicons
-                                      name="ellipsis-vertical"
-                                      size={18}
-                                      color="#64748B"
-                                    />
-                                  </TouchableOpacity>
-                                  <View
-                                    style={[
-                                      styles.iconButton,
-                                      {
-                                        backgroundColor: "#FFFFFF",
+                                    </TouchableOpacity>
+                                    <View
+                                      style={{
+                                        padding: 4,
+                                        backgroundColor: "#fff",
                                         borderRadius: 8,
                                         transform: [
                                           {
@@ -5711,14 +5907,83 @@ Project Team`;
                                               : "0deg",
                                           },
                                         ],
-                                      },
-                                    ]}
+                                      }}
+                                    >
+                                      <Ionicons
+                                        name="chevron-down"
+                                        size={18}
+                                        color="#38BDF8"
+                                      />
+                                    </View>
+                                  </View>
+                                </View>
+
+                                {/** Data Row: Progress & Amounts **/}
+                                <View
+                                  style={{
+                                    marginTop: 16,
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    gap: 16,
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 13,
+                                      color: "#64748B",
+                                      fontWeight: "600",
+                                    }}
                                   >
-                                    <Ionicons
-                                      name="chevron-down"
-                                      size={20}
-                                      color="#38BDF8"
-                                    />
+                                    {completedTasks}/{totalTasks} Completed
+                                    <Text
+                                      style={{
+                                        color: "#0284C7",
+                                        fontWeight: "700",
+                                      }}
+                                    >
+                                      {" "}
+                                      •{" "}
+                                      {Math.round(
+                                        totalTasks > 0
+                                          ? (completedTasks / totalTasks) * 100
+                                          : 0,
+                                      )}
+                                      %
+                                    </Text>
+                                  </Text>
+
+                                  <View
+                                    style={{
+                                      height: 14,
+                                      width: 1,
+                                      backgroundColor: "#94A3B8",
+                                    }}
+                                  />
+
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 8,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 13,
+                                        color: "#64748B",
+                                        fontWeight: "500",
+                                      }}
+                                    >
+                                      ₹
+                                      {(phase.used_amount || 0).toLocaleString(
+                                        "en-IN",
+                                      )}{" "}
+                                      / ₹
+                                      {(phase.budget || 0).toLocaleString(
+                                        "en-IN",
+                                      )}
+                                    </Text>
                                   </View>
                                 </View>
                               </TouchableOpacity>
@@ -5737,7 +6002,7 @@ Project Team`;
                                             style={[
                                               styles.taskItem,
                                               isCompleted &&
-                                              styles.taskItemCompleted,
+                                                styles.taskItemCompleted,
                                               isMobile && {
                                                 flexDirection: "column",
                                                 alignItems: "stretch",
@@ -5761,7 +6026,7 @@ Project Team`;
                                                 style={[
                                                   styles.radioButton,
                                                   isCompleted &&
-                                                  styles.radioButtonSelected,
+                                                    styles.radioButtonSelected,
                                                 ]}
                                               >
                                                 {isCompleted && (
@@ -5780,50 +6045,44 @@ Project Team`;
                                                   setChatTaskId(task.id);
                                                   setChatSiteName(
                                                     selectedSite?.name ||
-                                                    "Site",
+                                                      "Site",
                                                   );
                                                 }}
                                               >
                                                 {(task.status ===
                                                   "waiting_for_approval" ||
                                                   task.status ===
-                                                  "Waiting Approval") && (
-                                                    <View
+                                                    "Waiting Approval") && (
+                                                  <View
+                                                    style={{
+                                                      backgroundColor:
+                                                        "#FEF9C3",
+                                                      alignSelf: "flex-start",
+                                                      paddingHorizontal: 8,
+                                                      paddingVertical: 2,
+                                                      borderRadius: 4,
+                                                      marginBottom: 4,
+                                                      borderWidth: 1,
+                                                      borderColor: "#FDE047",
+                                                    }}
+                                                  >
+                                                    <Text
                                                       style={{
-                                                        backgroundColor:
-                                                          "#FEF9C3",
-                                                        alignSelf:
-                                                          "flex-start",
-                                                        paddingHorizontal: 8,
-                                                        paddingVertical: 2,
-                                                        borderRadius: 4,
-                                                        marginBottom: 4,
-                                                        borderWidth: 1,
-                                                        borderColor:
-                                                          "#FDE047",
+                                                        color: "#854D0E",
+                                                        fontSize: 10,
+                                                        fontWeight: "bold",
                                                       }}
                                                     >
-                                                      <Text
-                                                        style={{
-                                                          color: "#854D0E",
-                                                          fontSize: 10,
-                                                          fontWeight: "bold",
-                                                        }}
-                                                      >
-                                                        🟡 Completed –
-                                                        Approval Pending
-                                                      </Text>
-                                                    </View>
-                                                  )}
-                                                <Text
-                                                  style={styles.taskTitle}
-                                                >
+                                                      🟡 Completed – Approval
+                                                      Pending
+                                                    </Text>
+                                                  </View>
+                                                )}
+                                                <Text style={styles.taskTitle}>
                                                   {task.name}
                                                 </Text>
                                                 <Text
-                                                  style={
-                                                    styles.taskSubtitle
-                                                  }
+                                                  style={styles.taskSubtitle}
                                                 >
                                                   {task.status}
                                                 </Text>
@@ -5848,19 +6107,17 @@ Project Team`;
                                                   style={{
                                                     flexDirection: "row",
                                                     alignItems: "center",
-                                                    justifyContent:
-                                                      "flex-end",
+                                                    justifyContent: "flex-end",
                                                     gap: 6,
                                                   }}
                                                 >
                                                   {task.assignments &&
-                                                    task.assignments.length >
+                                                  task.assignments.length >
                                                     0 ? (
                                                     <>
                                                       <View
                                                         style={{
-                                                          flexDirection:
-                                                            "row",
+                                                          flexDirection: "row",
                                                           gap: 6,
                                                           flexWrap: "wrap",
                                                           justifyContent:
@@ -5868,9 +6125,7 @@ Project Team`;
                                                         }}
                                                       >
                                                         {task.assignments.map(
-                                                          (
-                                                            assignment: any,
-                                                          ) => (
+                                                          (assignment: any) => (
                                                             <View
                                                               key={
                                                                 assignment.id
@@ -5893,8 +6148,8 @@ Project Team`;
                                                               >
                                                                 {assignment.name
                                                                   ? assignment.name.split(
-                                                                    " ",
-                                                                  )[0]
+                                                                      " ",
+                                                                    )[0]
                                                                   : "Unknown"}
                                                               </Text>
                                                             </View>
@@ -5970,9 +6225,7 @@ Project Team`;
                                               <TouchableOpacity
                                                 style={styles.iconButton}
                                                 onPress={() =>
-                                                  handleDeleteTaskPress(
-                                                    task,
-                                                  )
+                                                  handleDeleteTaskPress(task)
                                                 }
                                               >
                                                 <Ionicons
@@ -6384,17 +6637,17 @@ Project Team`;
                                   style={{
                                     width:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? "100%"
                                         : "31%",
                                     aspectRatio:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? undefined
                                         : 1,
                                     height:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? 60
                                         : undefined,
                                     backgroundColor: "#f9fafb",
@@ -6404,13 +6657,13 @@ Project Team`;
                                     overflow: "hidden",
                                     flexDirection:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? "row"
                                         : "column",
                                     alignItems: "center",
                                     padding:
                                       activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
+                                      activeFileTab === "Documents"
                                         ? 10
                                         : 0,
                                   }}
@@ -6430,12 +6683,12 @@ Project Team`;
                                       style={{
                                         width:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 40
                                             : "100%",
                                         height:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 40
                                             : "70%",
                                         alignItems: "center",
@@ -6446,7 +6699,7 @@ Project Team`;
                                             : "#f3f4f6",
                                         borderRadius:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 20
                                             : 0,
                                       }}
@@ -6461,7 +6714,7 @@ Project Team`;
                                         }
                                         size={
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? 20
                                             : 32
                                         }
@@ -6479,12 +6732,12 @@ Project Team`;
                                     style={{
                                       padding:
                                         activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
+                                        activeFileTab === "Documents"
                                           ? 0
                                           : 4,
                                       marginLeft:
                                         activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
+                                        activeFileTab === "Documents"
                                           ? 10
                                           : 0,
                                       flex: 1,
@@ -6500,7 +6753,7 @@ Project Team`;
                                         color: "#111827",
                                         textAlign:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? "left"
                                             : "center",
                                       }}
@@ -6514,7 +6767,7 @@ Project Team`;
                                         color: "#6b7280",
                                         textAlign:
                                           activeFileTab === "Voice" ||
-                                            activeFileTab === "Documents"
+                                          activeFileTab === "Documents"
                                             ? "left"
                                             : "center",
                                       }}
@@ -6531,13 +6784,13 @@ Project Team`;
 
                                   {(activeFileTab === "Voice" ||
                                     activeFileTab === "Documents") && (
-                                      <Ionicons
-                                        name="download-outline"
-                                        size={20}
-                                        color="#6b7280"
-                                        style={{ marginRight: 5 }}
-                                      />
-                                    )}
+                                    <Ionicons
+                                      name="download-outline"
+                                      size={20}
+                                      color="#6b7280"
+                                      style={{ marginRight: 5 }}
+                                    />
+                                  )}
                                 </TouchableOpacity>
                               ))}
                             </View>
@@ -6863,7 +7116,8 @@ Project Team`;
               <View style={{ marginBottom: 20 }}>
                 <Text style={styles.inputLabel}>Stage Name</Text>
                 <Text style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
-                  Enter the exact stage name for your project. You can add specific tasks and items to this stage afterward.
+                  Enter the exact stage name for your project. You can add
+                  specific tasks and items to this stage afterward.
                 </Text>
                 <TextInput
                   style={{
@@ -6886,11 +7140,19 @@ Project Team`;
               <View style={{ marginBottom: 20 }}>
                 <Text style={styles.inputLabel}>Choose Floor (Optional)</Text>
                 <Text style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>
-                  Select a floor for this stage, or leave empty if not applicable.
+                  Select a floor for this stage, or leave empty if not
+                  applicable.
                 </Text>
 
                 {/* Floor Tags */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginBottom: 12,
+                  }}
+                >
                   {PREDEFINED_FLOORS.map((floor) => (
                     <TouchableOpacity
                       key={floor}
@@ -6899,11 +7161,19 @@ Project Team`;
                         paddingVertical: 8,
                         borderRadius: 20,
                         borderWidth: 1.5,
-                        borderColor: newStageSelectedFloor === floor ? "#2563EB" : "#D1D5DB",
-                        backgroundColor: newStageSelectedFloor === floor ? "#DBEAFE" : "#F9FAFB",
+                        borderColor:
+                          newStageSelectedFloor === floor
+                            ? "#2563EB"
+                            : "#D1D5DB",
+                        backgroundColor:
+                          newStageSelectedFloor === floor
+                            ? "#DBEAFE"
+                            : "#F9FAFB",
                       }}
                       onPress={() => {
-                        setNewStageSelectedFloor(newStageSelectedFloor === floor ? "" : floor);
+                        setNewStageSelectedFloor(
+                          newStageSelectedFloor === floor ? "" : floor,
+                        );
                         setNewStageCustomFloorVisible(false);
                         setNewStageCustomFloorInput("");
                       }}
@@ -6912,7 +7182,10 @@ Project Team`;
                         style={{
                           fontSize: 13,
                           fontWeight: "600",
-                          color: newStageSelectedFloor === floor ? "#1E40AF" : "#6B7280",
+                          color:
+                            newStageSelectedFloor === floor
+                              ? "#1E40AF"
+                              : "#6B7280",
                         }}
                       >
                         {floor}
@@ -6927,16 +7200,24 @@ Project Team`;
                       paddingVertical: 8,
                       borderRadius: 20,
                       borderWidth: 1.5,
-                      borderColor: newStageCustomFloorVisible ? "#2563EB" : "#D1D5DB",
-                      backgroundColor: newStageCustomFloorVisible ? "#DBEAFE" : "#F9FAFB",
+                      borderColor: newStageCustomFloorVisible
+                        ? "#2563EB"
+                        : "#D1D5DB",
+                      backgroundColor: newStageCustomFloorVisible
+                        ? "#DBEAFE"
+                        : "#F9FAFB",
                     }}
-                    onPress={() => setNewStageCustomFloorVisible(!newStageCustomFloorVisible)}
+                    onPress={() =>
+                      setNewStageCustomFloorVisible(!newStageCustomFloorVisible)
+                    }
                   >
                     <Text
                       style={{
                         fontSize: 13,
                         fontWeight: "600",
-                        color: newStageCustomFloorVisible ? "#1E40AF" : "#6B7280",
+                        color: newStageCustomFloorVisible
+                          ? "#1E40AF"
+                          : "#6B7280",
                       }}
                     >
                       + More
@@ -7072,13 +7353,13 @@ Project Team`;
                           style={[
                             styles.statusOption,
                             selectedTask.status === status &&
-                            styles.statusOptionActive,
+                              styles.statusOptionActive,
                             selectedTask.status === status &&
-                            status === "Completed" &&
-                            styles.statusBtnCompleted,
+                              status === "Completed" &&
+                              styles.statusBtnCompleted,
                             selectedTask.status === status &&
-                            status === "In Progress" &&
-                            styles.statusBtnProgress,
+                              status === "In Progress" &&
+                              styles.statusBtnProgress,
                           ]}
                           onPress={() =>
                             setSelectedTask({ ...selectedTask, status })
@@ -7088,7 +7369,7 @@ Project Team`;
                             style={[
                               styles.statusOptionText,
                               selectedTask.status === status &&
-                              styles.statusOptionTextActive,
+                                styles.statusOptionTextActive,
                             ]}
                           >
                             {status}
@@ -7114,8 +7395,8 @@ Project Team`;
                         >
                           {selectedTask.employee_id
                             ? employees.find(
-                              (e) => e.id == selectedTask.employee_id,
-                            )?.name || "Unknown"
+                                (e) => e.id == selectedTask.employee_id,
+                              )?.name || "Unknown"
                             : "Unassigned"}
                         </Text>
                         <Ionicons
@@ -7351,20 +7632,21 @@ Project Team`;
       </Modal>
 
       {/* Bottom Navigation */}
-      <View style={styles.newBottomNav}>
+      <View style={styles.bottomNav}>
         <TouchableOpacity
-          style={styles.newNavItem}
+          style={styles.navItem}
           onPress={() => setActiveTab("Dashboard")}
+          activeOpacity={0.7}
         >
           <Ionicons
-            name="grid-outline"
-            size={22}
-            color={activeTab === "Dashboard" ? "#8B0000" : "#9ca3af"}
+            name={activeTab === "Dashboard" ? "grid" : "grid-outline"}
+            size={24}
+            color={activeTab === "Dashboard" ? "#3B82F6" : "#6B7280"}
           />
           <Text
             style={[
-              styles.newNavText,
-              activeTab === "Dashboard" && styles.newNavTextActive,
+              styles.navText,
+              activeTab === "Dashboard" && styles.navTextActive,
             ]}
           >
             Dashboard
@@ -7372,18 +7654,19 @@ Project Team`;
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.newNavItem}
+          style={styles.navItem}
           onPress={() => setActiveTab("Workers")}
+          activeOpacity={0.7}
         >
           <Ionicons
-            name="people-outline"
-            size={22}
-            color={activeTab === "Workers" ? "#8B0000" : "#9ca3af"}
+            name={activeTab === "Workers" ? "people" : "people-outline"}
+            size={24}
+            color={activeTab === "Workers" ? "#3B82F6" : "#6B7280"}
           />
           <Text
             style={[
-              styles.newNavText,
-              activeTab === "Workers" && styles.newNavTextActive,
+              styles.navText,
+              activeTab === "Workers" && styles.navTextActive,
             ]}
           >
             Workers
@@ -7662,15 +7945,9 @@ Project Team`;
             </Text>
           </View>
 
-          <View style={{ flex: 1, flexDirection: isMobile ? "column" : "row" }}>
-            {/* LEFT SECTION - Project Details Panel (Editable Form) */}
-            <View
-              style={{
-                flex: 1,
-                borderRightWidth: isMobile ? 0 : 1,
-                borderRightColor: "#f3f4f6",
-              }}
-            >
+          <View style={{ flex: 1 }}>
+            {/* FULL WIDTH SECTION - Project Details Panel (Editable Form) */}
+            <View style={{ flex: 1 }}>
               <ScrollView
                 style={styles.settingsContent}
                 contentContainerStyle={{ paddingBottom: 40 }}
@@ -7718,7 +7995,7 @@ Project Team`;
                       style={[
                         styles.settingsInput,
                         editingSection !== "projectInfo" &&
-                        styles.disabledInput,
+                          styles.disabledInput,
                       ]}
                       value={formData.name}
                       onChangeText={(t) => handleInputChange("name", t)}
@@ -7734,7 +8011,7 @@ Project Team`;
                       style={[
                         styles.settingsInput,
                         editingSection !== "projectInfo" &&
-                        styles.disabledInput,
+                          styles.disabledInput,
                       ]}
                       value={formData.address}
                       onChangeText={(t) => handleInputChange("address", t)}
@@ -7744,14 +8021,19 @@ Project Team`;
                     />
                   </View>
 
-                  <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View
+                    style={{
+                      flexDirection: isMobile ? "column" : "row",
+                      gap: 12,
+                    }}
+                  >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.settingsLabel}>Start Date</Text>
                       <TouchableOpacity
                         style={[
                           styles.settingsInputContainer,
                           editingSection !== "projectInfo" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         onPress={() =>
                           editingSection === "projectInfo" &&
@@ -7782,7 +8064,7 @@ Project Team`;
                         style={[
                           styles.settingsInputContainer,
                           editingSection !== "projectInfo" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         onPress={() =>
                           editingSection === "projectInfo" &&
@@ -7860,7 +8142,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientName}
                         onChangeText={(t) => handleInputChange("clientName", t)}
@@ -7875,7 +8157,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientPhone}
                         onChangeText={(t) =>
@@ -7893,7 +8175,7 @@ Project Team`;
                         style={[
                           styles.settingsInput,
                           editingSection !== "clientDetails" &&
-                          styles.disabledInput,
+                            styles.disabledInput,
                         ]}
                         value={formData.clientEmail}
                         onChangeText={(t) =>
@@ -8074,7 +8356,7 @@ Project Team`;
                                 0,
                               ) /
                                 (parseFloat(formData.budget) || 1)) *
-                              100,
+                                100,
                             ).toFixed(1)}
                             %
                           </Text>
@@ -8098,7 +8380,7 @@ Project Team`;
                                   0,
                                 ) /
                                   (parseFloat(formData.budget) || 1)) *
-                                100,
+                                  100,
                               )}%`,
                               backgroundColor:
                                 settingsPhases.reduce(
@@ -8115,7 +8397,12 @@ Project Team`;
                       </View>
                     </View>
 
-                    <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View
+                      style={{
+                        flexDirection: isMobile ? "column" : "row",
+                        gap: 12,
+                      }}
+                    >
                       <View
                         style={{
                           flex: 1,
@@ -8214,11 +8501,11 @@ Project Team`;
                           {Math.max(
                             0,
                             (parseFloat(formData.budget) || 0) -
-                            settingsPhases.reduce(
-                              (sum, p) =>
-                                sum + (parseFloat(String(p.budget)) || 0),
-                              0,
-                            ),
+                              settingsPhases.reduce(
+                                (sum, p) =>
+                                  sum + (parseFloat(String(p.budget)) || 0),
+                                0,
+                              ),
                           ).toLocaleString()}
                         </Text>
                       </View>
@@ -8228,31 +8515,31 @@ Project Team`;
                       (sum, p) => sum + (parseFloat(String(p.budget)) || 0),
                       0,
                     ) > (parseFloat(formData.budget) || 0) && (
-                        <View
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 12,
+                          backgroundColor: "#fef2f2",
+                          padding: 8,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: "#fee2e2",
+                        }}
+                      >
+                        <Ionicons name="warning" size={16} color="#ef4444" />
+                        <Text
                           style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                            marginTop: 12,
-                            backgroundColor: "#fef2f2",
-                            padding: 8,
-                            borderRadius: 8,
-                            borderWidth: 1,
-                            borderColor: "#fee2e2",
+                            fontSize: 12,
+                            color: "#b91c1c",
+                            fontWeight: "600",
                           }}
                         >
-                          <Ionicons name="warning" size={16} color="#ef4444" />
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: "#b91c1c",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Warning: Allocation exceeds project limit
-                          </Text>
-                        </View>
-                      )}
+                          Warning: Allocation exceeds project limit
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={{ marginTop: 12 }}>
@@ -8332,8 +8619,8 @@ Project Team`;
                           </View>
                           <View
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
+                              flexDirection: isMobile ? "column" : "row",
+                              alignItems: isMobile ? "stretch" : "center",
                               gap: 8,
                             }}
                           >
@@ -8347,6 +8634,7 @@ Project Team`;
                                 borderWidth: 1,
                                 borderColor: "#e2e8f0",
                                 paddingHorizontal: 12,
+                                marginBottom: isMobile ? 8 : 0,
                               }}
                             >
                               <Text
@@ -8382,58 +8670,67 @@ Project Team`;
                                 placeholderTextColor="#cbd5e1"
                               />
                             </View>
-                            <TouchableOpacity
-                              onPress={() => submitCreateProject(false)}
+
+                            <View
                               style={{
                                 flexDirection: "row",
-                                alignItems: "center",
-                                backgroundColor: "#ECFDF5",
-                                paddingHorizontal: 10,
-                                paddingVertical: 6,
-                                borderRadius: 8,
-                                marginRight: 8,
-                                borderWidth: 1,
-                                borderColor: "#d1fae5",
+                                gap: 8,
+                                justifyContent: isMobile
+                                  ? "flex-end"
+                                  : "flex-start",
                               }}
                             >
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={16}
-                                color="#059669"
-                                style={{ marginRight: 4 }}
-                              />
-                              <Text
+                              <TouchableOpacity
+                                onPress={() => submitCreateProject(false)}
                                 style={{
-                                  fontSize: 12,
-                                  fontWeight: "700",
-                                  color: "#059669",
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  backgroundColor: "#ECFDF5",
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 6,
+                                  borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: "#d1fae5",
                                 }}
                               >
-                                Update
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleDeletePhase(phase.id, phase.name)
-                              }
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 18,
-                                backgroundColor: "#fef2f2",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                borderWidth: 1,
-                                borderColor: "#fee2e2",
-                              }}
-                            // tooltip="Delete Stage" // React Native doesn't support native tooltips easily, relying on icon
-                            >
-                              <Ionicons
-                                name="trash"
-                                size={18}
-                                color="#ef4444"
-                              />
-                            </TouchableOpacity>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={16}
+                                  color="#059669"
+                                  style={{ marginRight: 4 }}
+                                />
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: "700",
+                                    color: "#059669",
+                                  }}
+                                >
+                                  Update
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  handleDeletePhase(phase.id, phase.name)
+                                }
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 18,
+                                  backgroundColor: "#fef2f2",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderWidth: 1,
+                                  borderColor: "#fee2e2",
+                                }}
+                              >
+                                <Ionicons
+                                  name="trash"
+                                  size={18}
+                                  color="#ef4444"
+                                />
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         </View>
                       </View>
@@ -8524,28 +8821,6 @@ Project Team`;
                 </TouchableOpacity>
               </ScrollView>
             </View>
-
-            {/* RIGHT SECTION - Mini Report Panel (Read-Only Dashboard) */}
-            {!isMobile && (
-              <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
-                <ScrollView
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{
-                    padding: 24,
-                    flexGrow: 1,
-                    minHeight: "100%",
-                  }}
-                >
-                  <View style={{ flex: 1, justifyContent: "space-between" }}>
-                    {/* 4. Task Counts Grid - Pushed to bottom but connected visually */}
-                    <View>
-                    </View>
-                  </View>
-                </ScrollView>
-              </View>
-            )}
-
-            <View></View>
           </View>
         </SafeAreaView>
       </Modal>
@@ -8646,6 +8921,7 @@ Project Team`;
           </View>
 
           <ScrollView style={{ flex: 1, padding: 20 }}>
+            {/* NAME */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -8674,6 +8950,7 @@ Project Team`;
               />
             </View>
 
+            {/* EMAIL */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -8688,7 +8965,7 @@ Project Team`;
               <TextInput
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: emailError ? "#EF4444" : "#D1D5DB",
                   borderRadius: 8,
                   padding: 12,
                   fontSize: 14,
@@ -8696,15 +8973,21 @@ Project Team`;
                 }}
                 placeholder="Enter email address"
                 value={newEmployee.email}
-                onChangeText={(text) =>
-                  setNewEmployee({ ...newEmployee, email: text })
-                }
+                onChangeText={(text) => {
+                  setNewEmployee({ ...newEmployee, email: text });
+                  if (emailError) setEmailError("");
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
+              {emailError ? (
+                <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+                  {emailError}
+                </Text>
+              ) : null}
             </View>
 
-            {/* Password Section */}
+            {/* PASSWORD */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -8721,7 +9004,7 @@ Project Team`;
                   flexDirection: "row",
                   alignItems: "center",
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: passwordError ? "#EF4444" : "#D1D5DB",
                   borderRadius: 8,
                   paddingHorizontal: 12,
                   backgroundColor: "#FFF",
@@ -8738,23 +9021,30 @@ Project Team`;
                     editingEmployeeId ? "Enter new password" : "Enter password"
                   }
                   value={newEmployee.password}
-                  onChangeText={(text) =>
-                    setNewEmployee({ ...newEmployee, password: text })
-                  }
-                  secureTextEntry={!showPassword}
+                  onChangeText={(text) => {
+                    setNewEmployee({ ...newEmployee, password: text });
+                    if (passwordError) setPasswordError("");
+                  }}
+                  secureTextEntry={!showEmpPassword}
                 />
                 <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
+                  onPress={() => setShowEmpPassword(!showEmpPassword)}
                 >
                   <Ionicons
-                    name={showPassword ? "eye" : "eye-off"}
+                    name={showEmpPassword ? "eye" : "eye-off"}
                     size={20}
                     color="#6B7280"
                   />
                 </TouchableOpacity>
               </View>
+              {passwordError ? (
+                <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+                  {passwordError}
+                </Text>
+              ) : null}
             </View>
 
+            {/* CONFIRM PASSWORD */}
             {editingEmployeeId && (
               <View style={{ marginBottom: 16 }}>
                 <Text
@@ -8786,15 +9076,17 @@ Project Team`;
                       color: "#111827",
                     }}
                     placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirmPassword}
+                    value={confirmEmpPassword}
+                    onChangeText={setConfirmEmpPassword}
+                    secureTextEntry={!showEmpConfirmPassword}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    onPress={() =>
+                      setShowEmpConfirmPassword(!showEmpConfirmPassword)
+                    }
                   >
                     <Ionicons
-                      name={showConfirmPassword ? "eye" : "eye-off"}
+                      name={showEmpConfirmPassword ? "eye" : "eye-off"}
                       size={20}
                       color="#6B7280"
                     />
@@ -8803,6 +9095,7 @@ Project Team`;
               </View>
             )}
 
+            {/* PHONE */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -8812,12 +9105,12 @@ Project Team`;
                   marginBottom: 8,
                 }}
               >
-                Phone
+                Phone *
               </Text>
               <TextInput
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: phoneError ? "#EF4444" : "#D1D5DB",
                   borderRadius: 8,
                   padding: 12,
                   fontSize: 14,
@@ -8825,13 +9118,20 @@ Project Team`;
                 }}
                 placeholder="Enter phone number"
                 value={newEmployee.phone}
-                onChangeText={(text) =>
-                  setNewEmployee({ ...newEmployee, phone: text })
-                }
+                onChangeText={(text) => {
+                  setNewEmployee({ ...newEmployee, phone: text });
+                  if (phoneError) setPhoneError("");
+                }}
                 keyboardType="phone-pad"
               />
+              {phoneError ? (
+                <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+                  {phoneError}
+                </Text>
+              ) : null}
             </View>
 
+            {/* ROLE */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -8860,6 +9160,7 @@ Project Team`;
               />
             </View>
 
+            {/* STATUS */}
             <View style={{ marginBottom: 24 }}>
               <Text
                 style={{
@@ -8903,6 +9204,7 @@ Project Team`;
               </View>
             </View>
 
+            {/* SUBMIT BUTTON */}
             <TouchableOpacity
               style={{
                 backgroundColor: "#8B0000",
@@ -8911,52 +9213,7 @@ Project Team`;
                 alignItems: "center",
                 marginBottom: 40,
               }}
-              onPress={async () => {
-                if (
-                  !newEmployee.name ||
-                  !newEmployee.email ||
-                  !newEmployee.phone ||
-                  (!editingEmployeeId && !newEmployee.password)
-                ) {
-                  Alert.alert(
-                    "Error",
-                    "Please fill in all required fields (Name, Email, Phone, Role, Password)",
-                  );
-                  return;
-                }
-
-                if (
-                  editingEmployeeId &&
-                  newEmployee.password &&
-                  newEmployee.password !== confirmPassword
-                ) {
-                  Alert.alert("Error", "Passwords do not match");
-                  return;
-                }
-
-                const payload = {
-                  ...newEmployee,
-                  role: newEmployee.role.toLowerCase(),
-                };
-
-                try {
-                  if (editingEmployeeId) {
-                    await api.put(`/employees/${editingEmployeeId}`, payload);
-                    showToast("Worker updated successfully", "success");
-                  } else {
-                    await api.post("/employees", payload);
-                    showToast("Worker added successfully", "success");
-                  }
-                  setEmployeeModalVisible(false);
-                  fetchEmployees();
-                } catch (error: any) {
-                  console.error("Error saving employee:", error);
-                  Alert.alert(
-                    "Error",
-                    error.response?.data?.message || "Failed to save worker",
-                  );
-                }
-              }}
+              onPress={handleSaveEmployee}
             >
               <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>
                 {editingEmployeeId ? "Update Worker" : "Add Worker"}
@@ -9061,10 +9318,16 @@ Project Team`;
                   paddingVertical: 8,
                   borderRadius: 20,
                   borderWidth: 1.5,
-                  borderColor: editCustomFloorInputVisible ? "#2563EB" : "#D1D5DB",
-                  backgroundColor: editCustomFloorInputVisible ? "#DBEAFE" : "#F9FAFB",
+                  borderColor: editCustomFloorInputVisible
+                    ? "#2563EB"
+                    : "#D1D5DB",
+                  backgroundColor: editCustomFloorInputVisible
+                    ? "#DBEAFE"
+                    : "#F9FAFB",
                 }}
-                onPress={() => setEditCustomFloorInputVisible(!editCustomFloorInputVisible)}
+                onPress={() =>
+                  setEditCustomFloorInputVisible(!editCustomFloorInputVisible)
+                }
               >
                 <Text
                   style={{
@@ -9261,8 +9524,8 @@ Project Team`;
                   const maxOrder =
                     phaseTasks.length > 0
                       ? Math.max(
-                        ...phaseTasks.map((t: any) => t.order_index || 0),
-                      )
+                          ...phaseTasks.map((t: any) => t.order_index || 0),
+                        )
                       : 0;
 
                   setNewTaskSerialNumber(String(maxOrder + 1));
@@ -9487,14 +9750,24 @@ Project Team`;
           onPress={() => setActiveTab("Dashboard")}
           activeOpacity={0.7}
         >
-          <View style={[styles.bottomNavIconContainer, activeTab === "Dashboard" && styles.bottomNavIconActive]}>
+          <View
+            style={[
+              styles.bottomNavIconContainer,
+              activeTab === "Dashboard" && styles.bottomNavIconActive,
+            ]}
+          >
             <Ionicons
               name={activeTab === "Dashboard" ? "grid" : "grid-outline"}
               size={24}
               color={activeTab === "Dashboard" ? "#8B0000" : "#6B7280"}
             />
           </View>
-          <Text style={[styles.bottomNavText, activeTab === "Dashboard" && styles.bottomNavTextActive]}>
+          <Text
+            style={[
+              styles.bottomNavText,
+              activeTab === "Dashboard" && styles.bottomNavTextActive,
+            ]}
+          >
             Dashboard
           </Text>
         </TouchableOpacity>
@@ -9504,248 +9777,307 @@ Project Team`;
           onPress={() => setActiveTab("Workers")}
           activeOpacity={0.7}
         >
-          <View style={[styles.bottomNavIconContainer, activeTab === "Workers" && styles.bottomNavIconActive]}>
+          <View
+            style={[
+              styles.bottomNavIconContainer,
+              activeTab === "Workers" && styles.bottomNavIconActive,
+            ]}
+          >
             <Ionicons
               name={activeTab === "Workers" ? "people" : "people-outline"}
               size={24}
               color={activeTab === "Workers" ? "#8B0000" : "#6B7280"}
             />
           </View>
-          <Text style={[styles.bottomNavText, activeTab === "Workers" && styles.bottomNavTextActive]}>
+          <Text
+            style={[
+              styles.bottomNavText,
+              activeTab === "Workers" && styles.bottomNavTextActive,
+            ]}
+          >
             Workers
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView >
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  // Container
+  container: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+
+  // Header Styles
   header: {
-    height: 64,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
     backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB", // Light divider
-    zIndex: 10,
-    // Removed shadows to make it flat as requested
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  headerButton: {
-    padding: 8,
-  },
-  headerTitleContainer: {
-    justifyContent: "center",
+  headerLeft: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#111827",
+    color: "#8B0000",
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "600",
+    color: "#9CA3AF",
+    fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 1,
-    marginTop: 2,
+    letterSpacing: 1.2,
+    marginTop: 4,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
   },
   headerIconButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6", // Subtle background for icons
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  newNotificationBadge: {
+  notificationBadge: {
     position: "absolute",
-    top: -5,
-    right: -5,
+    top: -4,
+    right: -4,
     backgroundColor: "#EF4444",
     minWidth: 18,
     height: 18,
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: "#fff",
-    zIndex: 20,
   },
   notificationBadgeText: {
     color: "#fff",
     fontSize: 10,
     fontWeight: "bold",
-    textAlign: "center",
   },
-  headerProfileAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E5E7EB",
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-  },
-  avatarTextInitial: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-  },
-
-  newMainContent: {
-    flex: 1,
-    backgroundColor: "#F3F4F6", // Slightly darker background for contrast
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 100,
-  },
-
-  newStatusRow: {
-    flexDirection: "row",
-    flexWrap: "wrap", // Ensure wrapping on small screens
-    justifyContent: "space-between", // Distribute space
-    gap: 16, // Use gap for spacing
-    marginBottom: 20,
-  },
-  newStatusCard: {
-    flexBasis: "47%", // Mobile first: 2 cards per row with gap
-    minHeight: 140, // Taller cards
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    justifyContent: "space-between", // Space text
-    shadowColor: "#7C3AED", // Violet Shadow as requested
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15, // Visible opacity for the theme color
-    shadowRadius: 16, // Soft glow
-    elevation: 8,
-    borderLeftWidth: 4, // Left Accent
-    borderLeftColor: "#7C3AED", // Violet Accent
-    marginBottom: 8,
-  },
-  statusCardIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "transparent", // Remove icon background for clean look
-    alignItems: "flex-start",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  statusCardLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6B7280",
-    marginTop: 4,
-  },
-  // Add a dedicated style for the number if possible. 
-  // Since I can't see the JSX, I hope inline styles aren't overriding this.
-  // I will assume there is a Text component for the number.
-
-  newSearchSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 20,
-    gap: 12,
-  },
-  newFilterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#111827", // Darker chip
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24, // Pill shape
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: "#FCA5A5",
+    shadowColor: "#8B0000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
   },
-  newFilterChipText: {
-    fontSize: 13,
+  profileAvatarText: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  newSearchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 44,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  newSearchInput: {
-    flex: 1,
-    fontSize: 13,
-    marginLeft: 8,
-    color: "#1f2937",
-  },
-  newFilterIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
+    color: "#8B0000",
   },
 
-  newActiveProjectsTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#111827",
-    marginHorizontal: 0,
-    marginTop: 24,
-    marginBottom: 12,
+  // Dropdown Styles
+  dropdownOverlay: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
   },
-  newProjectRow: {
+  profileDropdown: {
+    position: "absolute",
+    top: 70,
+    right: 20,
+    width: 200,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    padding: 8,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    gap: 12,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  dropdownSeparator: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 4,
+  },
+
+  // Scroll Container
+  scrollContainer: {
+    flex: 1,
+    width: "100%",
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+
+  // Metrics Grid
+  metricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  // Projects Section
+  projectsSection: {
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 16,
+  },
+  projectsActionRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  createButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#3B82F6",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  createButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  searchContainer: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    marginHorizontal: 0,
-    marginBottom: 12,
-    padding: 16,
     borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderColor: "#E5E7EB",
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
+  },
+
+  // Projects List
+  projectsList: {
+    gap: 12,
+  },
+  projectCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-  newProjectName: {
+  projectCardContent: {
+    flex: 1,
+  },
+  projectName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1e293b",
+    color: "#1F2937",
     marginBottom: 4,
   },
-  newProjectLocation: {
+  projectLocation: {
     fontSize: 13,
-    color: "#64748b",
-    fontWeight: "500",
-  },
-  newEmptyState: {
-    padding: 40,
-    alignItems: "center",
-  },
-  newEmptyText: {
-    fontSize: 14,
-    color: "#9ca3af",
+    color: "#6B7280",
   },
 
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === "ios" ? 24 : 16,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  navItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  navText: {
+    fontSize: 11,
+    marginTop: 4,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  navTextActive: {
+    color: "#3B82F6",
+    fontWeight: "700",
+  },
+
+  // Utility Styles
   newBottomNav: {
     flexDirection: "row",
     justifyContent: "center",
@@ -9999,11 +10331,6 @@ const styles = StyleSheet.create({
     color: "#b91c1c",
     opacity: 0.8,
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
   // Action Row Styles
   actionRow: {
     flexDirection: "row",
@@ -10024,16 +10351,6 @@ const styles = StyleSheet.create({
     color: "#8B0000",
     fontWeight: "700",
     fontSize: 14,
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#f3f4f6",
-    borderRadius: 8,
-    height: 44,
   },
   searchContainerInput: {
     flex: 1,
@@ -10922,11 +11239,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
   inputLabel: {
     fontSize: 14,
     fontWeight: "700",
@@ -11431,16 +11743,6 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  metricCard: {
-    flex: 1,
-    minWidth: "44%",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    elevation: 2,
-  },
   totalProjectsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -11459,17 +11761,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#10B981",
-  },
-  metricLabel: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
   },
   metricSubRow: {
     flexDirection: "row",
@@ -11608,15 +11899,6 @@ const styles = StyleSheet.create({
     color: "#4b5563",
     fontWeight: "500",
   },
-  searchInput: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
-    backgroundColor: "#f9fafb",
-    fontSize: 14,
-    color: "#1f2937",
-  },
   primaryButton: {
     backgroundColor: "#1d4ed8",
     padding: 16,
@@ -11683,6 +11965,310 @@ const styles = StyleSheet.create({
   },
   bottomNavTextActive: {
     color: "#8B0000",
+  },
+  // Missing Status Card Styles
+  newStatusCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  statusCardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  statusCardLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
+  // Missing Project Row Styles
+  newProjectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12, // More rounded
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  newProjectName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  newProjectLocation: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  // Enhanced Dashboard Styles
+  metricCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    // padding: 20, <--- REMOVED padding from here, moved to Gradient
+    width: "48%", // Approx 2 columns
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, // Slightly increased shadow
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 0, // Removed border
+    overflow: "hidden", // Important so gradient obeys radius
+  },
+  metricCardGradient: {
+    padding: 20,
+    flex: 1, // Fill the touchable
+  },
+  metricHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  metricIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff", // Default white
+  },
+  metricLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B5563",
+    marginBottom: 4,
+  },
+  metricSubtext: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+
+  // New Action Card Gradient Styles
+  actionCardGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 24,
+    borderRadius: 20,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  actionCardIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  actionCardContent: {
+    flex: 1,
+  },
+  actionCardTitleLight: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  actionCardDescriptionLight: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 18,
+  },
+
+  // Filter Pills for Completed Tasks
+  filterPills: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 12,
+    justifyContent: "flex-start",
+    flexWrap: "wrap",
+  },
+  filterPill: {
+    minWidth: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterPillActive: {
+    backgroundColor: "#D1FAE5",
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  filterPillText: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  filterPillTextActive: {
+    color: "#047857",
+  },
+
+  // --- Modern Workers Page Styles ---
+  workersContainer: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: "#F3F4F6", // Light gray background
+  },
+  workersContainerMobile: {
+    padding: 16,
+  },
+  workersHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  workersHeaderMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 16,
+  },
+  workersTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  workersTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: -0.5,
+  },
+  addWorkerButton: {
+    backgroundColor: "#991B1B", // Dark Red
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#991B1B",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  addWorkerButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  workerListWrapper: {
+    flex: 1,
+    marginTop: 8,
+  },
+  workerCardContainer: {
+    marginBottom: 12,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  workerCardGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.5)", // Subtle glass border effect
+  },
+  workerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.8)", // Semi-transparent white
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  workerAvatarLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#374151",
+  },
+  workerInfo: {
+    flex: 1,
+  },
+  workerName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  workerRole: {
+    fontSize: 12,
+    color: "#4B5563",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  workerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  workerActionBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyWorkerState: {
+    alignItems: "center",
+    padding: 40,
+    justifyContent: "center",
+    height: 300,
+  },
+  emptyWorkerText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    marginTop: 12,
+    fontStyle: "italic",
   },
 });
 

@@ -3,6 +3,11 @@ import { View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthContext } from "../context/AuthContext";
+import {
+  slideFromRightTransition,
+  lightSlideFromBottom,
+  downwardSlideTransition,
+} from "./TransitionUtils";
 
 // Screen imports
 import HomeScreen from "../screens/HomeScreen"; // Professional Homepage
@@ -31,7 +36,14 @@ const AppNavigator: React.FC = () => {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#fff",
+        }}
+      >
         <ActivityIndicator size="large" color="#8B0000" />
       </View>
     );
@@ -68,6 +80,9 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="SiteManagement"
               component={SiteManagementScreen}
+              options={{
+                ...lightSlideFromBottom,
+              }}
             />
             <Stack.Screen
               name="TaskManagement"

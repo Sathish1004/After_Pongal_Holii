@@ -311,8 +311,7 @@ exports.getWorkerDetails = async (req, res) => {
                 t.status,
                 t.created_at,
                 t.due_date,
-                t.completed_at,
-                t.entered_at
+                t.completed_at
             FROM task_assignments ta
             JOIN tasks t ON ta.task_id = t.id
             WHERE ta.employee_id = ?

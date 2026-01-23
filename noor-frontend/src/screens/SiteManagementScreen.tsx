@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StyleSheet, StatusBar, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StyleSheet, StatusBar, TextInput, Modal, Alert, Animated, Dimensions, BackHandler } from 'react-native';
 import api from '../services/api';
 
 interface Site {
@@ -27,6 +27,7 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+    const slideAnimation = new Animated.Value(0);
     const [formData, setFormData] = useState({
         name: '',
         location: '',
@@ -35,12 +36,18 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
         duration: ''
     });
 
-    useFocusEffect(
-        React.useCallback(() => {
-            fetchSites();
-            fetchEmployees();
-        }, [])
-    );
+    // Handle back button on Android
+    useEffect(() => {
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            () => {
+                navigation.goBack();
+                return true;
+            }
+        );
+
+        return () => backHandler.remove();
+    }, [navigation]);
 
     const fetchSites = async () => {
         try {
@@ -59,6 +66,19 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
             console.log('Error fetching employees:', error);
         }
     };
+
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchSites();
+            fetchEmployees();
+            // Animate in on focus
+            Animated.timing(slideAnimation, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        }, [slideAnimation])
+    );
 
     const toggleEmployee = (id: number) => {
         setSelectedEmployees(prev =>
@@ -111,7 +131,22 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
-            <View style={styles.header}>
+            <Animated.View
+                style={[
+                    styles.header,
+                    {
+                        opacity: slideAnimation,
+                        transform: [
+                            {
+                                translateY: slideAnimation.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [10, 0],
+                                }),
+                            },
+                        ],
+                    },
+                ]}
+            >
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Text style={styles.backBtnText}>←</Text>
                 </TouchableOpacity>
@@ -121,9 +156,25 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
                         <Text style={styles.addBtnText}>+ New Site</Text>
                     </TouchableOpacity>
                 )}
-            </View>
+            </Animated.View>
 
-            <ScrollView style={styles.content} contentContainerStyle={styles.contentPadding}>
+            <Animated.ScrollView
+                style={[
+                    styles.content,
+                    {
+                        opacity: slideAnimation,
+                        transform: [
+                            {
+                                translateY: slideAnimation.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [20, 0],
+                                }),
+                            },
+                        ],
+                    },
+                ]}
+                contentContainerStyle={styles.contentPadding}
+            >
                 {sites.length === 0 ? (
                     <View style={styles.empty}>
                         <Text style={styles.emptyIcon}>🏗️</Text>
@@ -162,7 +213,7 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
                         </TouchableOpacity>
                     ))
                 )}
-            </ScrollView>
+            </Animated.ScrollView>
 
             <Modal visible={showModal} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>

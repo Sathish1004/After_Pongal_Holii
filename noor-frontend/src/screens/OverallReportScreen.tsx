@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -11,8 +11,10 @@ import {
   Platform,
   Modal,
   useWindowDimensions,
+  Animated,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import api from "../services/api";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -117,6 +119,16 @@ const ExecutiveCard = ({
 );
 
 const ProjectHealthRow = ({ project }: { project: any }) => {
+  const [progressAnim] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: project.progress,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+  }, [project.progress]);
+
   let statusColor = "#10B981"; // Green
   let statusLabel = "On Track";
   let statusBg = "#ECFDF5";
@@ -145,9 +157,8 @@ const ProjectHealthRow = ({ project }: { project: any }) => {
   }
 
   return (
-    <View style={styles.projectRow}>
-      {/* Left Col: Info & Progress */}
-      <View style={styles.projectLeft}>
+    <View style={styles.projectCard}>
+      <View style={styles.projectCardContent}>
         <View style={styles.projectHeader}>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.projectLoc}>
@@ -155,44 +166,44 @@ const ProjectHealthRow = ({ project }: { project: any }) => {
           </Text>
         </View>
 
+        <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.statusText, { color: statusColor }]}>
+            {statusLabel}
+          </Text>
+        </View>
+
+        {project.pending_approvals > 0 ? (
+          <View style={styles.pendingActionBadge}>
+            <Text style={styles.pendingActionText}>
+              {project.pending_approvals} Pending Approval
+              {project.pending_approvals > 1 ? "s" : ""}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.noActionText}>No Pending Actions</Text>
+        )}
+
         <View style={styles.projectProgressContainer}>
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Progress</Text>
             <Text style={styles.progressValue}>{project.progress}%</Text>
           </View>
           <View style={styles.progressBarBg}>
-            <View
+            <Animated.View
               style={[
                 styles.progressBarFill,
-                { width: `${project.progress}%`, backgroundColor: statusColor },
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ["0%", "100%"],
+                  }),
+                  backgroundColor: statusColor,
+                },
               ]}
             />
           </View>
         </View>
-      </View>
-
-      {/* Right Col: Status & Actions */}
-      <View style={styles.projectRight}>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: statusBg, borderColor: statusColor + "40" },
-          ]}
-        >
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {statusLabel}
-          </Text>
-        </View>
-        {project.pending_approvals > 0 ? (
-          <View style={styles.pendingActionBadge}>
-            <Text style={styles.pendingActionText}>
-              {project.pending_approvals} Actions Pending
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.noActionText}>No Pending Actions</Text>
-        )}
       </View>
     </View>
   );
@@ -298,6 +309,10 @@ const OverallReportScreen = ({ navigation }: any) => {
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
+  // Project Health Pagination
+  const [projectHealthPage, setProjectHealthPage] = useState(1);
+  const projectsPerPage = 5;
+
   // Employee Filter State
   const [sortBy, setSortBy] = useState<"best" | "overdue" | "inactive">("best");
 
@@ -319,6 +334,32 @@ const OverallReportScreen = ({ navigation }: any) => {
       return 0;
     });
   }, [report, sortBy]);
+
+  // Project Health Pagination Helpers
+  const getPaginatedProjects = useCallback(() => {
+    if (!report?.projectSummary) return [];
+    const startIndex = (projectHealthPage - 1) * projectsPerPage;
+    const endIndex = startIndex + projectsPerPage;
+    return report.projectSummary.slice(startIndex, endIndex);
+  }, [report, projectHealthPage]);
+
+  const getTotalProjectPages = useCallback(() => {
+    if (!report?.projectSummary) return 1;
+    return Math.ceil(report.projectSummary.length / projectsPerPage);
+  }, [report]);
+
+  const handleProjectHealthNext = () => {
+    const totalPages = getTotalProjectPages();
+    if (projectHealthPage < totalPages) {
+      setProjectHealthPage(projectHealthPage + 1);
+    }
+  };
+
+  const handleProjectHealthPrev = () => {
+    if (projectHealthPage > 1) {
+      setProjectHealthPage(projectHealthPage - 1);
+    }
+  };
 
   // Calculate filtered financial data based on selected project
   const getFilteredFinancialData = useCallback(() => {
@@ -927,10 +968,72 @@ const OverallReportScreen = ({ navigation }: any) => {
         <View style={styles.sectionContainer}>
           <SectionHeader title="Project Health" icon="pulse-outline" />
           <View style={styles.projectList}>
-            {report.projectSummary.map((p) => (
+            {getPaginatedProjects().map((p) => (
               <ProjectHealthRow key={p.id} project={p} />
             ))}
           </View>
+
+          {/* Pagination Controls */}
+          {getTotalProjectPages() > 1 && (
+            <View style={styles.paginationContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  projectHealthPage === 1 && styles.paginationButtonDisabled,
+                ]}
+                onPress={handleProjectHealthPrev}
+                disabled={projectHealthPage === 1}
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={20}
+                  color={projectHealthPage === 1 ? "#D1D5DB" : "#3B82F6"}
+                />
+                <Text
+                  style={[
+                    styles.paginationButtonText,
+                    projectHealthPage === 1 &&
+                      styles.paginationButtonTextDisabled,
+                  ]}
+                >
+                  Previous
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={styles.paginationInfo}>
+                Page {projectHealthPage} of {getTotalProjectPages()}
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  projectHealthPage === getTotalProjectPages() &&
+                    styles.paginationButtonDisabled,
+                ]}
+                onPress={handleProjectHealthNext}
+                disabled={projectHealthPage === getTotalProjectPages()}
+              >
+                <Text
+                  style={[
+                    styles.paginationButtonText,
+                    projectHealthPage === getTotalProjectPages() &&
+                      styles.paginationButtonTextDisabled,
+                  ]}
+                >
+                  Next
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={
+                    projectHealthPage === getTotalProjectPages()
+                      ? "#D1D5DB"
+                      : "#3B82F6"
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* 4. Milestone Achievements */}
@@ -938,52 +1041,73 @@ const OverallReportScreen = ({ navigation }: any) => {
           <SectionHeader title="Milestone Achievements" icon="flag-outline" />
           <View style={styles.milestoneGrid}>
             <TouchableOpacity
-              style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              style={{ flex: 1 }}
               onPress={() =>
                 navigation.navigate("MilestoneDetailScreen", {
                   status: "Completed",
                 })
               }
-              activeOpacity={0.6}
+              activeOpacity={0.8}
             >
-              <Text style={styles.mileVal}>
-                {report.milestones.stats.completed}
-              </Text>
-              <Text style={[styles.mileLabel, { color: "#10B981" }]}>
-                Completed
-              </Text>
+              <LinearGradient
+                colors={["#DCFCE7", "#BBF7D0"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              >
+                <Text style={[styles.mileVal, { color: "#166534" }]}>
+                  {report.milestones.stats.completed}
+                </Text>
+                <Text style={[styles.mileLabel, { color: "#166534" }]}>
+                  Completed
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              style={{ flex: 1 }}
               onPress={() =>
                 navigation.navigate("MilestoneDetailScreen", {
                   status: "In Progress",
                 })
               }
-              activeOpacity={0.6}
+              activeOpacity={0.8}
             >
-              <Text style={styles.mileVal}>
-                {report.milestones.stats.in_progress}
-              </Text>
-              <Text style={[styles.mileLabel, { color: "#3B82F6" }]}>
-                Ongoing
-              </Text>
+              <LinearGradient
+                colors={["#DBEAFE", "#BFDBFE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              >
+                <Text style={[styles.mileVal, { color: "#1E40AF" }]}>
+                  {report.milestones.stats.in_progress}
+                </Text>
+                <Text style={[styles.mileLabel, { color: "#1E40AF" }]}>
+                  Ongoing
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              style={{ flex: 1 }}
               onPress={() =>
                 navigation.navigate("MilestoneDetailScreen", {
                   status: "Delayed",
                 })
               }
-              activeOpacity={0.6}
+              activeOpacity={0.8}
             >
-              <Text style={styles.mileVal}>
-                {report.milestones.stats.delayed}
-              </Text>
-              <Text style={[styles.mileLabel, { color: "#EF4444" }]}>
-                Delayed
-              </Text>
+              <LinearGradient
+                colors={["#FECACA", "#FCA5A5"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.milestoneStat, styles.milestoneStatClickable]}
+              >
+                <Text style={[styles.mileVal, { color: "#7F1D1D" }]}>
+                  {report.milestones.stats.delayed}
+                </Text>
+                <Text style={[styles.mileLabel, { color: "#7F1D1D" }]}>
+                  Delayed
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -1299,15 +1423,17 @@ const styles = StyleSheet.create({
 
   // Container Rules
   sectionContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1413,22 +1539,29 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Project Health - Split Layout Row
+  // Project Health - Card-based Layout
   projectList: {
     width: "100%",
   },
-  projectRow: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    paddingVertical: 16,
+  projectCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  projectCardContent: {
+    flex: 1,
   },
   projectLeft: {
     flex: 1,
     paddingRight: 16,
-    borderRightWidth: 1,
-    borderRightColor: "#F3F4F6",
   },
   projectHeader: {
     marginBottom: 8,
@@ -1491,22 +1624,40 @@ const styles = StyleSheet.create({
   // Milestone
   milestoneGrid: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 10,
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    gap: 12,
   },
   milestoneStat: {
     alignItems: "center",
+    flex: 1,
   },
   milestoneStatClickable: {
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: "#F9FAFB",
+    padding: 24,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    elevation: 1,
+    borderColor: "#E2E8F0",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    justifyContent: "center",
   },
-  mileVal: { fontSize: 24, fontWeight: "bold", color: "#1F2937" },
-  mileLabel: { fontSize: 12, fontWeight: "600", marginTop: 4 },
+  mileVal: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.8,
+  },
+  mileLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
 
   // Financial
   financialMain: {
@@ -1688,6 +1839,37 @@ const styles = StyleSheet.create({
   projectPickerItemTextActive: {
     color: "#10B981",
     fontWeight: "700",
+  },
+
+  // Pagination Styles
+  paginationContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  paginationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#EFF6FF",
+  },
+  paginationButtonDisabled: {
+    backgroundColor: "#F3F4F6",
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    color: "#3B82F6",
+    marginLeft: 4,
+  },
+  paginationButtonTextDisabled: {
+    color: "#D1D5DB",
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: "#6B7280",
   },
 });
 

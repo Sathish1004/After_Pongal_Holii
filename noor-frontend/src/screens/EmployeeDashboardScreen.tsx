@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, StatusBar, RefreshControl, StyleSheet, FlatList, useWindowDimensions, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, StatusBar, RefreshControl, StyleSheet, FlatList, useWindowDimensions, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/api';
@@ -143,7 +143,7 @@ const EmployeeDashboardScreen = () => {
     const renderHeader = () => (
         <View style={styles.headerContainer}>
             <View>
-                <Text style={styles.headerTitle}>Noor Constructions</Text>
+                <Text style={styles.headerTitle}>Noor Construction</Text>
                 <Text style={styles.headerSubtitle}>Employee Portal</Text>
             </View>
             <View style={styles.headerRight}>
@@ -155,21 +155,20 @@ const EmployeeDashboardScreen = () => {
                     {unreadCount > 0 && (
                         <View style={{
                             position: 'absolute',
-                            top: 0, right: 0,
-                            backgroundColor: '#D32F2F',
-                            borderRadius: 6, width: 12, height: 12,
-                            alignItems: 'center', justifyContent: 'center'
-                        }} />
+                            top: -4, right: -4,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 9, width: 18, height: 18,
+                            alignItems: 'center', justifyContent: 'center',
+                            borderWidth: 2, borderColor: '#fff',
+                        }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </Text>
+                        </View>
                     )}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('EmployeeProfile')}>
-                    <Text style={styles.profileText}>{user?.name?.charAt(0) || 'E'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.iconBtn, { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' }]}
-                    onPress={logout}
-                >
-                    <Ionicons name="log-out-outline" size={24} color="#EF4444" />
+                    <Text style={styles.profileText}>{user?.name?.charAt(0)?.toUpperCase() || 'E'}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -253,21 +252,20 @@ const EmployeeDashboardScreen = () => {
                     <StatusBox
                         label="Pending Tasks"
                         icon="time-outline"
-                        color="#D32F2F"
+                        color="#EF4444"
                         count={stats.pending}
-                    // onPress={() => navigation.navigate('EmployeeTasks')} // Disabled Global View
                     />
                     <StatusBox
                         label="Completed"
                         icon="checkmark-done-circle-outline"
-                        color="#388E3C"
+                        color="#10B981"
                         count={stats.completed}
                         onPress={() => navigation.navigate('CompletedTasks')}
                     />
                     <StatusBox
                         label="Active Sites"
                         icon="business-outline"
-                        color="#1976D2"
+                        color="#3B82F6"
                         count={sites.length}
                     />
                 </View>
@@ -331,14 +329,20 @@ const EmployeeDashboardScreen = () => {
             {/* Bottom Navigation */}
             <View style={styles.bottomNav}>
                 <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('Dashboard')}>
-                    <Ionicons name="grid-outline" size={22} color={activeTab === 'Dashboard' ? '#3B82F6' : '#9ca3af'} />
+                    <Ionicons 
+                        name={activeTab === 'Dashboard' ? 'grid' : 'grid-outline'} 
+                        size={24} 
+                        color={activeTab === 'Dashboard' ? '#3B82F6' : '#6B7280'} 
+                    />
                     <Text style={[styles.navText, activeTab === 'Dashboard' && styles.navTextActive]}>Dashboard</Text>
                 </TouchableOpacity>
 
-
-
                 <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('EmployeeProfile')}>
-                    <Ionicons name="person-outline" size={22} color={activeTab === 'Profile' ? '#3B82F6' : '#9ca3af'} />
+                    <Ionicons 
+                        name={activeTab === 'Profile' ? 'person' : 'person-outline'} 
+                        size={24} 
+                        color={activeTab === 'Profile' ? '#3B82F6' : '#6B7280'} 
+                    />
                     <Text style={[styles.navText, activeTab === 'Profile' && styles.navTextActive]}>Profile</Text>
                 </TouchableOpacity>
             </View>
@@ -351,6 +355,8 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F9FAFB',
     },
+    
+    // Header Styles
     headerContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -365,62 +371,74 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#1e293b',
+        color: '#1F2937',
         letterSpacing: -0.5,
     },
     headerSubtitle: {
-        fontSize: 13,
-        color: '#64748b',
-        fontWeight: '500',
+        fontSize: 11,
+        color: '#6B7280',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginTop: 2,
     },
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
+        gap: 12,
     },
     iconBtn: {
-        padding: 8,
-        backgroundColor: '#f8fafc',
+        width: 44,
+        height: 44,
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#f1f5f9',
-    },
-    profileBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 14,
-        backgroundColor: '#fef2f2',
+        backgroundColor: '#F9FAFB',
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1.5,
-        borderColor: '#fee2e2',
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    profileBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#E5E7EB',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#D1D5DB',
     },
     profileText: {
-        color: '#3B82F6',
+        color: '#374151',
         fontWeight: '800',
-        fontSize: 16,
+        fontSize: 18,
     },
+    
+    // Scroll Content
     scrollContent: {
         padding: 20,
         paddingBottom: 100,
     },
+    
+    // Status Grid
     statusGrid: {
         flexDirection: 'row',
-        gap: 8,
+        flexWrap: 'wrap',
+        gap: 12,
         marginBottom: 24,
     },
     statusBox: {
         flex: 1,
+        minWidth: '30%',
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: '#f1f5f9',
+        borderColor: '#F3F4F6',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     statusHeader: {
         flexDirection: 'row',
@@ -436,47 +454,49 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     statusCount: {
-        fontSize: 22,
+        fontSize: 28,
         fontWeight: '800',
         letterSpacing: -0.5,
     },
     statusLabel: {
         fontSize: 13,
-        fontWeight: '700',
-        color: '#64748b',
+        fontWeight: '600',
+        color: '#6B7280',
     },
+    
+    // Section Title
     sectionTitle: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#111827',
-        marginBottom: 12,
+        color: '#1F2937',
+        marginBottom: 16,
     },
+    
+    // List Container
     listContainer: {
-        backgroundColor: 'transparent',
+        gap: 12,
     },
     projectListItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 18,
+        padding: 16,
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        marginBottom: 14,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#f1f5f9',
+        borderColor: '#F3F4F6',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.03,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
         elevation: 2,
     },
     listIcon: {
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         borderRadius: 14,
-        backgroundColor: '#fef2f2',
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 16,
+        marginRight: 12,
     },
     listContent: {
         flex: 1,
@@ -484,40 +504,51 @@ const styles = StyleSheet.create({
     listTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#1e293b',
+        color: '#1F2937',
         marginBottom: 4,
     },
     listSub: {
-        fontSize: 14,
-        color: '#64748b',
-        fontWeight: '500',
+        fontSize: 13,
+        color: '#6B7280',
     },
+    
+    // Empty State
     emptyState: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 40,
+        paddingVertical: 60,
     },
     emptyText: {
         color: '#9CA3AF',
         fontSize: 14,
+        marginTop: 12,
     },
+    
+    // Bottom Navigation
     bottomNav: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         paddingVertical: 12,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 16,
         backgroundColor: '#FFFFFF',
         borderTopWidth: 1,
         borderTopColor: '#F3F4F6',
-        paddingBottom: 24, // Safe area hint
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 8,
     },
     navItem: {
         alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 4,
     },
     navText: {
-        fontSize: 10,
+        fontSize: 11,
         marginTop: 4,
-        color: '#9CA3AF',
-        fontWeight: '500',
+        color: '#6B7280',
+        fontWeight: '600',
     },
     navTextActive: {
         color: '#3B82F6',

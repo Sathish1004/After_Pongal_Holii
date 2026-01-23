@@ -1,5 +1,43 @@
 const db = require("../config/db");
 
+/**
+ * Calculate delay days for a milestone
+ * @param {string} dueDate - Planned end date (ISO string or Date)
+ * @param {string} status - Milestone status
+ * @returns {number} Number of days delayed (0 if not delayed)
+ */
+const calculateDelayDays = (dueDate, status) => {
+  // Don't calculate delay for completed milestones
+  if (status === "Completed" || status === "completed") {
+    return 0;
+  }
+
+  if (!dueDate) {
+    return 0;
+  }
+
+  try {
+    // Reset time to 00:00:00 to avoid partial-day errors
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+
+    // Calculate difference in milliseconds
+    const diffMs = today.getTime() - due.getTime();
+
+    // Convert to days
+    const delayDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    // Return 0 if not delayed (future date or today)
+    return delayDays > 0 ? delayDays : 0;
+  } catch (error) {
+    console.error("Error calculating delay days:", error);
+    return 0;
+  }
+};
+
 exports.getOverallReport = async (req, res) => {
   try {
     const { fromDate, toDate, projectIds } = req.query;
@@ -296,9 +334,7 @@ exports.getOverallReport = async (req, res) => {
       completed: milestones.filter((m) => m.status === "Completed").length,
       delayed: milestones.filter(
         (m) =>
-          m.status === "Delayed" ||
-          (m.status !== "Completed" &&
-            new Date(m.planned_end_date) < new Date()),
+          m.status !== "Completed" && new Date(m.planned_end_date) < new Date(),
       ).length,
       in_progress: milestones.filter((m) => m.status === "In Progress").length,
       latest_achievement_date: milestones
@@ -400,13 +436,17 @@ exports.getOverallReport = async (req, res) => {
       },
       milestones: {
         stats: milestoneStats,
-        list: milestones.map((m) => ({
-          ...m,
-          is_delayed:
-            m.status === "Delayed" ||
-            (m.status !== "Completed" &&
-              new Date(m.planned_end_date) < new Date()),
-        })),
+        list: milestones.map((m) => {
+          const delayDays = calculateDelayDays(m.planned_end_date, m.status);
+          return {
+            ...m,
+            delay_days: delayDays,
+            is_delayed:
+              m.status === "Delayed" ||
+              (m.status !== "Completed" &&
+                new Date(m.planned_end_date) < new Date()),
+          };
+        }),
         achievements: milestones
           .filter((m) => m.status === "Completed" || m.progress === 100)
           .sort(

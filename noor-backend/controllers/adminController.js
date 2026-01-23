@@ -7,7 +7,7 @@ exports.getDashboardStats = async (req, res) => {
             SELECT 
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN completion_status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = 'delayed' OR status = 'pending' THEN 1 ELSE 0 END) as on_hold,
                 SUM(budget) as total_budget
             FROM sites

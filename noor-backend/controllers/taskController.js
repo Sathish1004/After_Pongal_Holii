@@ -304,6 +304,13 @@ exports.approveTask = async (req, res) => {
       );
     }
 
+    // 🎯 Update Project Completion Status
+    const { updateProjectCompletion } = require('../utils/projectCompletion');
+    const [taskSite] = await db.query('SELECT site_id FROM tasks WHERE id = ?', [taskId]);
+    if (taskSite.length > 0) {
+      await updateProjectCompletion(taskSite[0].site_id);
+    }
+
     res.json({ message: "Task approved" });
   } catch (error) {
     console.error("Error approving task:", error);
@@ -372,6 +379,13 @@ exports.rejectTask = async (req, res) => {
             : "Changes requested by Admin.",
         ],
       );
+    }
+
+    // 🎯 Update Project Completion Status
+    const { updateProjectCompletion } = require('../utils/projectCompletion');
+    const [taskSite] = await db.query('SELECT site_id FROM tasks WHERE id = ?', [taskId]);
+    if (taskSite.length > 0) {
+      await updateProjectCompletion(taskSite[0].site_id);
     }
 
     res.json({ message: "Changes requested" });
