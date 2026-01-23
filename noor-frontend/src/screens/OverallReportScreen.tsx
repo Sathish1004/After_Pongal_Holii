@@ -19,6 +19,7 @@ import api from "../services/api";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import CustomDatePicker from "../components/CustomDatePicker";
+import { BarChart } from "react-native-gifted-charts";
 
 // Silence TypeScript error for web-only code
 declare const document: any;
@@ -70,19 +71,29 @@ const DetailItem = ({
   label,
   value,
   color,
+  bgColor,
   suffix,
+  isMobile,
 }: {
   label: string;
   value: string | number;
   color?: string;
+  bgColor?: string;
   suffix?: string;
+  isMobile?: boolean;
 }) => (
-  <View style={styles.detailItem}>
-    <Text style={styles.detailValue}>
+  <View
+    style={[
+      styles.statBox,
+      bgColor ? { backgroundColor: bgColor, borderColor: bgColor } : {},
+      // Removed 100% width override to allow grid layout
+    ]}
+  >
+    <Text style={[styles.detailValue, color ? { color } : { color: "#111827" }]}>
       {value}
       {suffix}
     </Text>
-    <Text style={[styles.detailLabel, color ? { color } : {}]}>{label}</Text>
+    <Text style={[styles.detailLabel, { color: "#374151" }]}>{label}</Text>
   </View>
 );
 
@@ -93,6 +104,7 @@ const ExecutiveCard = ({
   color,
   subLabel,
   onPress,
+  isMobile,
 }: {
   label: string;
   value: number | string;
@@ -100,19 +112,39 @@ const ExecutiveCard = ({
   color: string;
   subLabel?: string;
   onPress?: () => void;
+  isMobile?: boolean;
 }) => (
   <TouchableOpacity
-    style={[styles.execCard, { opacity: onPress ? 1 : 0.8 }]}
+    style={[
+      styles.execCard,
+      { opacity: onPress ? 1 : 0.8 },
+      isMobile && { flexDirection: "column", padding: 10, gap: 4, height: 110, justifyContent: "center" },
+    ]}
     onPress={onPress}
     disabled={!onPress}
     activeOpacity={0.6}
   >
-    <View style={[styles.execIconCircle, { backgroundColor: color + "15" }]}>
-      <Ionicons name={icon} size={24} color={color} />
+    <View
+      style={[
+        styles.execIconCircle,
+        { backgroundColor: color + "15" },
+        isMobile && { marginRight: 0, marginBottom: 6, width: 32, height: 32 },
+      ]}
+    >
+      <Ionicons name={icon} size={isMobile ? 18 : 24} color={color} />
     </View>
-    <View style={styles.execContent}>
-      <Text style={[styles.execValue, { color }]}>{value}</Text>
-      <Text style={styles.execLabel}>{label}</Text>
+    <View style={[styles.execContent, isMobile && { alignItems: "center" }]}>
+      <Text style={[styles.execValue, { color }, isMobile && { fontSize: 16 }]}>
+        {value}
+      </Text>
+      <Text
+        style={[
+          styles.execLabel,
+          isMobile && { fontSize: 10, textAlign: "center" },
+        ]}
+      >
+        {label}
+      </Text>
       {subLabel && <Text style={styles.execSub}>{subLabel}</Text>}
     </View>
   </TouchableOpacity>
@@ -411,21 +443,24 @@ const OverallReportScreen = ({ navigation }: any) => {
   const getFilteredTopExpenses = useCallback(() => {
     if (!report) return [];
 
+    let expenses = [];
     if (selectedFinancialProject === "all") {
-      return report.topExpenseProjects || [];
+      expenses = report.topExpenseProjects || [];
     } else {
       // Show only the selected project
       const project = report.projectSummary.find(
         (p: any) => p.id === selectedFinancialProject,
       );
       if (!project) return [];
-      return [
+      expenses = [
         {
           name: project.name,
           spent: project.spent || 0,
         },
       ];
     }
+    // Ensure sorting highest expense first
+    return expenses.sort((a: any, b: any) => Number(b.spent) - Number(a.spent));
   }, [report, selectedFinancialProject]);
 
   // Normalize status values to ensure consistency
@@ -540,7 +575,7 @@ const OverallReportScreen = ({ navigation }: any) => {
   );
 
   const fetchReport = async () => {
-    setLoading(true);
+    if (!report) setLoading(true); // Only show loading on initial fetch to prevent shaking
     try {
       let q = "";
       const p = [];
@@ -656,21 +691,20 @@ const OverallReportScreen = ({ navigation }: any) => {
                 </div>
 
                 <!-- Action Required -->
-                ${
-                  report.actionItems && report.actionItems.length > 0
-                    ? `
+                ${report.actionItems && report.actionItems.length > 0
+        ? `
                 <div class="alert-box">
                     <div class="alert-title">⚠ Action Required</div>
                     ${report.actionItems
-                      .map(
-                        (item: string) => `
+          .map(
+            (item: string) => `
                         <div class="alert-item"><div class="dot"></div>${item}</div>
                     `,
-                      )
-                      .join("")}
+          )
+          .join("")}
                 </div>`
-                    : ""
-                }
+        : ""
+      }
 
                 <!-- Project Health -->
                 <div class="section">
@@ -687,9 +721,9 @@ const OverallReportScreen = ({ navigation }: any) => {
                         </thead>
                         <tbody>
                             ${report.projectSummary
-                              .slice(0, 8)
-                              .map(
-                                (p: any) => `
+        .slice(0, 8)
+        .map(
+          (p: any) => `
                                 <tr>
                                     <td><b>${p.name}</b></td>
                                     <td>${p.location}</td>
@@ -707,8 +741,8 @@ const OverallReportScreen = ({ navigation }: any) => {
                                     <td style="text-align: center;">${p.pending_approvals}</td>
                                 </tr>
                             `,
-                              )
-                              .join("")}
+        )
+        .join("")}
                         </tbody>
                     </table>
                 </div>
@@ -762,16 +796,16 @@ const OverallReportScreen = ({ navigation }: any) => {
                      <table>
                         <tr><th style="width: 70%">Project</th><th style="width: 30%; text-align: right;">Expense</th></tr>
                         ${(report.topExpenseProjects || [])
-                          .slice(0, 5)
-                          .map(
-                            (e: any) => `
+        .slice(0, 5)
+        .map(
+          (e: any) => `
                             <tr>
                                 <td>${e.name}</td>
                                 <td style="text-align: right;">${fmt(e.spent)}</td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+        )
+        .join("")}
                      </table>
                 </div>
 
@@ -811,9 +845,9 @@ const OverallReportScreen = ({ navigation }: any) => {
                         </thead>
                         <tbody>
                             ${report.employeePerformance
-                              .slice(0, 8)
-                              .map(
-                                (e: any) => `
+        .slice(0, 8)
+        .map(
+          (e: any) => `
                                 <tr>
                                     <td><b>${e.name}</b></td>
                                     <td><span style="font-size: 10px; color: #6B7280; text-transform:uppercase;">${e.role}</span></td>
@@ -828,8 +862,8 @@ const OverallReportScreen = ({ navigation }: any) => {
                                     </td>
                                 </tr>
                             `,
-                              )
-                              .join("")}
+        )
+        .join("")}
                         </tbody>
                     </table>
                 </div>
@@ -895,10 +929,11 @@ const OverallReportScreen = ({ navigation }: any) => {
           <SectionHeader title="Executive Summary" icon="bar-chart-outline" />
           <View style={styles.executiveGrid}>
             <ExecutiveCard
-              label="Active Projects"
+              label="Active"
               value={report.companyOverview.active_projects}
               icon="business"
               color="#3B82F6"
+              isMobile={isMobile}
               onPress={() =>
                 navigation.navigate("EmployeeTasksScreen", {
                   filterStatus: "Active",
@@ -910,6 +945,7 @@ const OverallReportScreen = ({ navigation }: any) => {
               value={report.companyOverview.completed_projects}
               icon="checkmark-done"
               color="#10B981"
+              isMobile={isMobile}
               onPress={() =>
                 navigation.navigate("CompletedTasksScreen", {
                   filterStatus: "Completed",
@@ -921,24 +957,14 @@ const OverallReportScreen = ({ navigation }: any) => {
               value={report.companyOverview.projects_with_delays}
               icon="alert-circle"
               color="#EF4444"
+              isMobile={isMobile}
               onPress={() =>
                 navigation.navigate("StageProgressScreen", {
                   filterStatus: "Delayed",
                 })
               }
             />
-            <ExecutiveCard
-              label="Budget Util."
-              value={`${report.financialSummary.utilization_percentage}%`}
-              icon="wallet"
-              color="#F59E0B"
-              subLabel={`₹${(report.financialSummary.total_expenses || 0).toLocaleString("en-IN")} / ₹${(report.financialSummary.total_allocated || 0).toLocaleString("en-IN")}`}
-              onPress={() =>
-                navigation.navigate("ProjectTransactions", {
-                  showBudgetView: true,
-                })
-              }
-            />
+
           </View>
         </View>
 
@@ -993,7 +1019,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                   style={[
                     styles.paginationButtonText,
                     projectHealthPage === 1 &&
-                      styles.paginationButtonTextDisabled,
+                    styles.paginationButtonTextDisabled,
                   ]}
                 >
                   Previous
@@ -1008,7 +1034,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                 style={[
                   styles.paginationButton,
                   projectHealthPage === getTotalProjectPages() &&
-                    styles.paginationButtonDisabled,
+                  styles.paginationButtonDisabled,
                 ]}
                 onPress={handleProjectHealthNext}
                 disabled={projectHealthPage === getTotalProjectPages()}
@@ -1017,7 +1043,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                   style={[
                     styles.paginationButtonText,
                     projectHealthPage === getTotalProjectPages() &&
-                      styles.paginationButtonTextDisabled,
+                    styles.paginationButtonTextDisabled,
                   ]}
                 >
                   Next
@@ -1115,7 +1141,12 @@ const OverallReportScreen = ({ navigation }: any) => {
         {/* 5. Financial Overview */}
         <View style={styles.sectionContainer}>
           {/* Header with Project Selector */}
-          <View style={styles.sectionHeaderRow}>
+          <View
+            style={[
+              styles.sectionHeaderRow,
+              isMobile && { flexDirection: "column", alignItems: "flex-start" },
+            ]}
+          >
             <SectionHeader title="Financial Overview" icon="cash-outline" />
 
             {/* Project Selector Dropdown */}
@@ -1129,7 +1160,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                 {selectedFinancialProject === "all"
                   ? "All Projects"
                   : projects.find((p) => p.id === selectedFinancialProject)
-                      ?.name || "Select Project"}
+                    ?.name || "Select Project"}
               </Text>
               <Ionicons name="chevron-down" size={16} color="#6B7280" />
             </TouchableOpacity>
@@ -1142,7 +1173,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                 style={[
                   styles.projectPickerItem,
                   selectedFinancialProject === "all" &&
-                    styles.projectPickerItemActive,
+                  styles.projectPickerItemActive,
                 ]}
                 onPress={() => {
                   setSelectedFinancialProject("all");
@@ -1153,7 +1184,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                   style={[
                     styles.projectPickerItemText,
                     selectedFinancialProject === "all" &&
-                      styles.projectPickerItemTextActive,
+                    styles.projectPickerItemTextActive,
                   ]}
                 >
                   All Projects
@@ -1169,7 +1200,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                   style={[
                     styles.projectPickerItem,
                     selectedFinancialProject === project.id &&
-                      styles.projectPickerItemActive,
+                    styles.projectPickerItemActive,
                   ]}
                   onPress={() => {
                     setSelectedFinancialProject(project.id);
@@ -1180,7 +1211,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                     style={[
                       styles.projectPickerItemText,
                       selectedFinancialProject === project.id &&
-                        styles.projectPickerItemTextActive,
+                      styles.projectPickerItemTextActive,
                     ]}
                   >
                     {project.name}
@@ -1232,24 +1263,35 @@ const OverallReportScreen = ({ navigation }: any) => {
                     />
                   </View>
 
-                  <View style={styles.finStatsGrid}>
+                  <View
+                    style={[
+                      styles.finStatsGrid,
+                      { flexWrap: "wrap", justifyContent: isMobile ? "space-between" : "space-between" }
+                    ]}
+                  >
                     <DetailItem
                       label="Total Received"
                       value={`₹${Number(financialData.total_received).toLocaleString()}`}
                       color="#10B981"
+                      bgColor="#ECFDF5"
+                      isMobile={isMobile}
                     />
                     <DetailItem
                       label="Total Expenses"
                       value={`₹${Number(financialData.total_expenses).toLocaleString()}`}
                       color="#EF4444"
+                      bgColor="#FEF2F2"
+                      isMobile={isMobile}
                     />
                     <DetailItem
                       label="Remaining"
                       value={`₹${Number(financialData.balance).toLocaleString()}`}
                       color="#3B82F6"
+                      bgColor="#EFF6FF"
+                      isMobile={isMobile}
                     />
-                  </View>
 
+                  </View>
                   {/* Top Expenses */}
                   {(() => {
                     const topExpenses = getFilteredTopExpenses();
@@ -1261,7 +1303,7 @@ const OverallReportScreen = ({ navigation }: any) => {
                               ? "Top Expenses by Project"
                               : "Project Expenses"}
                           </Text>
-                          {topExpenses.map((p, i) => (
+                          {topExpenses.map((p: any, i: number) => (
                             <View key={i} style={styles.expRow}>
                               <Text style={styles.expName}>{p.name}</Text>
                               <Text style={styles.expVal}>
@@ -1276,81 +1318,154 @@ const OverallReportScreen = ({ navigation }: any) => {
                 </>
               );
             })()}
-          </View>
+          </View >
         </View>
 
         {/* 6. Task Analytics */}
         <View style={styles.sectionContainer}>
           <SectionHeader title="Task Analytics" icon="stats-chart-outline" />
-          <View style={styles.taskStatsGrid}>
-            <View style={styles.taskStatBox}>
+          <View
+            style={[
+              styles.taskStatsGrid,
+              { flexWrap: "wrap", gap: 12 },
+            ]}
+          >
+            <View
+              style={[
+                styles.taskStatBox,
+                { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
+              ]}
+            >
               <Text style={styles.taskVal}>
                 {report.taskStatistics.total_tasks}
               </Text>
               <Text style={styles.taskLabel}>Total Tasks</Text>
             </View>
-            <View style={styles.taskStatBox}>
-              <Text style={[styles.taskVal, { color: "#10B981" }]}>
+            <View
+              style={[
+                styles.taskStatBox,
+                { backgroundColor: "#ECFDF5", borderColor: "#D1FAE5" },
+              ]}
+            >
+              <Text style={[styles.taskVal, { color: "#059669" }]}>
                 {report.taskStatistics.completed_tasks}
               </Text>
-              <Text style={styles.taskLabel}>Completed</Text>
+              <Text style={[styles.taskLabel, { color: "#065F46" }]}>
+                Completed
+              </Text>
             </View>
-            <View style={styles.taskStatBox}>
-              <Text style={[styles.taskVal, { color: "#F59E0B" }]}>
+            <View
+              style={[
+                styles.taskStatBox,
+                { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
+              ]}
+            >
+              <Text style={[styles.taskVal, { color: "#D97706" }]}>
                 {report.taskStatistics.waiting_approval}
               </Text>
-              <Text style={styles.taskLabel}>Pending Approval</Text>
+              <Text style={[styles.taskLabel, { color: "#92400E" }]}>
+                Pending
+              </Text>
             </View>
-            <View style={styles.taskStatBox}>
-              <Text style={styles.taskVal}>
+            <View
+              style={[
+                styles.taskStatBox,
+                { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+              ]}
+            >
+              <Text style={[styles.taskVal, { color: "#7C3AED" }]}>
                 {report.taskStatistics.avg_completion_time_days}d
               </Text>
-              <Text style={styles.taskLabel}>Avg Time</Text>
+              <Text style={[styles.taskLabel, { color: "#5B21B6" }]}>
+                Avg Time
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* 7. Employee Performance */}
+        {/* 7. Worker Performance */}
         <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeaderRow}>
-            <SectionHeader title="Employee Performance" icon="people-outline" />
+          <SectionHeader title="Worker Performance" icon="people-outline" />
+          <View style={{ flexDirection: "row", justifyContent: "space-around", marginBottom: 16, marginTop: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#10B981", marginRight: 8 }} />
+              <Text style={{ fontSize: 12, color: "#374151" }}>Completed</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#F59E0B", marginRight: 8 }} />
+              <Text style={{ fontSize: 12, color: "#374151" }}>Overdue</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#EF4444", marginRight: 8 }} />
+              <Text style={{ fontSize: 12, color: "#374151" }}>Not Started</Text>
+            </View>
           </View>
 
-          {/* Filter Tabs - Pill Shape */}
-          <View style={styles.filterTabsRow}>
-            {[
-              { id: "best", label: "Best Performer" },
-              { id: "overdue", label: "Most Overdue" },
-              { id: "inactive", label: "Least Active" },
-            ].map((opt) => {
-              const isActive = sortBy === opt.id;
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.pillTab, isActive && styles.pillTabActive]}
-                  onPress={() => setSortBy(opt.id as any)}
-                >
-                  <Text
-                    style={[styles.pillText, isActive && styles.pillTextActive]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {report.employeePerformance && report.employeePerformance.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ paddingVertical: 10, paddingLeft: 10 }}>
+                {(() => {
+                  const stackData = report.employeePerformance.map((e: any) => {
+                    const completed = e.completed_tasks || 0;
+                    const overdue = e.overdue_tasks || 0;
+                    const notStarted = Math.max(
+                      0,
+                      (e.total_tasks || 0) - completed - overdue
+                    );
 
-          <View style={styles.employeeList}>
-            {getSortedEmployees().length > 0 ? (
-              getSortedEmployees().map((e) => (
-                <EmployeeRow key={e.id} employee={e} />
-              ))
-            ) : (
-              <Text style={styles.emptyText}>
-                No data available for this filter.
-              </Text>
-            )}
-          </View>
+                    return {
+                      stacks: [
+                        { value: completed, color: "#10B981" },
+                        { value: overdue, color: "#F59E0B" },
+                        { value: notStarted, color: "#EF4444" },
+                      ],
+                      label: e.name.length > 8 ? e.name.substring(0, 8) + ".." : e.name,
+                      barBorderTopLeftRadius: 4,
+                      barBorderTopRightRadius: 4,
+                    };
+                  });
+
+                  // Calculate max value for better scaling
+                  const maxTotal = Math.max(
+                    ...stackData.map((s) =>
+                      s.stacks.reduce((acc, curr) => acc + curr.value, 0)
+                    ),
+                    5 // default minimum max value to avoid flatline on 0
+                  );
+
+                  // Round up to nearest nice number
+                  const maxValue = Math.ceil(maxTotal / 4) * 4;
+
+                  return (
+                    <BarChart
+                      stackData={stackData}
+                      width={Math.max(width - 80, report.employeePerformance.length * 70)}
+                      height={220}
+                      barWidth={24}
+                      spacing={50}
+                      initialSpacing={20}
+                      noOfSections={4}
+                      maxValue={maxValue}
+                      yAxisThickness={0}
+                      xAxisThickness={0}
+                      xAxisLabelTextStyle={{ color: "#6B7280", fontSize: 11 }}
+                      yAxisTextStyle={{ color: "#9CA3AF", fontSize: 11 }}
+                      rulesColor="#F3F4F6"
+                      rulesType="dashed"
+                      dashGap={6}
+                      dashWidth={4}
+                      showYAxisIndices
+                      hideRules={false}
+                    />
+                  );
+                })()}
+              </View>
+            </ScrollView>
+          ) : (
+            <Text style={{ textAlign: "center", color: "#6B7280", margin: 20 }}>
+              No worker performance data available.
+            </Text>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -1424,15 +1539,14 @@ const styles = StyleSheet.create({
   // Container Rules
   sectionContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: 24, // Rounded corners
     padding: 24,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    marginBottom: 24,
+    borderWidth: 0, // No harsh border
     shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
+    shadowOpacity: 0.05, // Subtle shadow
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
     elevation: 4,
   },
   sectionHeader: {
@@ -1462,11 +1576,12 @@ const styles = StyleSheet.create({
   // Executive Summary
   executiveGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+    flexWrap: "nowrap", // Single row
+    gap: 8,
   },
   execCard: {
-    width: "48%",
+    flex: 1, // Share space equally
+    minWidth: 0, // Allow shrinking
     backgroundColor: "#F9FAFB",
     padding: 16,
     borderRadius: 12,
@@ -1474,7 +1589,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    marginBottom: 4,
+    marginBottom: 0, // No bottom margin needed for single row
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -1668,54 +1783,69 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  finLabel: { fontSize: 13, color: "#6B7280", marginBottom: 4 },
-  finBigVal: { fontSize: 22, fontWeight: "bold", color: "#111827" },
+  finLabel: { fontSize: 13, color: "#374151", marginBottom: 4, fontWeight: "500" },
+  finBigVal: { fontSize: 22, fontWeight: "900", color: "#000000" },
   finProgressContainer: { marginBottom: 20 },
   finProgressBar: { height: 8, borderRadius: 4 },
   finStatsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    paddingTop: 24,
+    borderTopWidth: 1, // Optional: Remove if separating completely
+    borderTopColor: "#F3F4F6", // Optional
+    gap: 12,
   },
-  detailItem: {},
+  detailItem: {}, // Legacy
+  statBox: {
+    paddingVertical: 24, // Increased padding
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
+    width: "47%", // Force 2 columns on mobile (wrap)
+    marginBottom: 12,
+    flexGrow: 1, // Allow expanding on desktop
+  },
   detailValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1F2937",
-    marginBottom: 2,
+    fontSize: 18, // Slightly larger
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 4,
   },
-  detailLabel: { fontSize: 11, color: "#6B7280" },
+  detailLabel: { fontSize: 12, color: "#374151", fontWeight: "600" },
   topExpContainer: {
-    marginTop: 20,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 16,
-  },
-  expRow: {
+    marginTop: 24,
+    backgroundColor: "#F3F4F6", // Slightly darker gray container
+    borderRadius: 16,
+    padding: 24, // Bigger container
+  }, expRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
-    paddingBottom: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderColor: "#E5E7EB",
   },
-  expName: { fontSize: 13, color: "#4B5563" },
-  expVal: { fontSize: 13, fontWeight: "600", color: "#374151" },
+  expName: { fontSize: 14, fontWeight: "600", color: "#111827" }, // Darker text
+  expVal: { fontSize: 14, fontWeight: "700", color: "#000000" }, // Darkest value
 
   // Task Analytics
   taskStatsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 12,
   },
   taskStatBox: {
-    flex: 1,
     alignItems: "center",
-    padding: 10,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 10,
-    marginHorizontal: 4,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    width: "47%", // Force 2x2 layout
+    flexGrow: 1,
+    // Default colors overridden by inline styles
   },
   taskVal: {
     fontSize: 18,
