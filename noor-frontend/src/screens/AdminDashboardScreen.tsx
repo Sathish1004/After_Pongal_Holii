@@ -1,4 +1,4 @@
-import * as Print from "expo-print";
+﻿import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,6 +31,7 @@ import MilestoneList from "../components/MilestoneList"; // NEW
 import AddMilestoneModal from "../components/AddMilestoneModal"; // NEW
 import AchievementBanner from "../components/AchievementBanner"; // NEW
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import {
@@ -1101,6 +1102,7 @@ const generateProjectReportHTML = (
 
 const AdminDashboardScreen = () => {
   const { user, logout } = useContext(AuthContext);
+  const insets = useSafeAreaInsets();
   const handleLogout = () => {
     logout();
   };
@@ -2368,7 +2370,9 @@ const AdminDashboardScreen = () => {
     return (
       <ScrollView
         style={{ flex: 1, padding: 16 }}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 8) + 80,
+        }}
       >
         {/* Header with Back Button */}
         <View
@@ -2734,7 +2738,9 @@ const AdminDashboardScreen = () => {
     return (
       <ScrollView
         style={{ flex: 1, padding: 16 }}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 8) + 80,
+        }}
       >
         {/* Header with Back Button */}
         <View
@@ -4800,7 +4806,16 @@ Project Team`;
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Fixed Header */}
@@ -4996,7 +5011,10 @@ Project Team`;
             <ScrollView
               ref={scrollViewRef}
               style={{ flex: 1, width: "100%" }}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: Math.max(insets.bottom, 8) + 80 },
+              ]}
               showsVerticalScrollIndicator={false}
             >
               {statsLoading ? (

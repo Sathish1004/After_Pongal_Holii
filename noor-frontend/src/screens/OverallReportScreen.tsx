@@ -19,7 +19,7 @@ import api from "../services/api";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import CustomDatePicker from "../components/CustomDatePicker";
-import { BarChart } from "react-native-gifted-charts";
+import { BarChart, PieChart } from "react-native-gifted-charts";
 
 // Silence TypeScript error for web-only code
 declare const document: any;
@@ -345,6 +345,10 @@ const OverallReportScreen = ({ navigation }: any) => {
   const [projectHealthPage, setProjectHealthPage] = useState(1);
   const projectsPerPage = 5;
 
+  // Employee Performance Pagination (Mobile: 2 per page)
+  const [employeePerfPage, setEmployeePerfPage] = useState(1);
+  const employeesPerPage = isMobile ? 2 : 10; // Show 2 employees on mobile, 10 on desktop
+
   // Employee Filter State
   const [sortBy, setSortBy] = useState<"best" | "overdue" | "inactive">("best");
 
@@ -379,6 +383,32 @@ const OverallReportScreen = ({ navigation }: any) => {
     if (!report?.projectSummary) return 1;
     return Math.ceil(report.projectSummary.length / projectsPerPage);
   }, [report]);
+
+  // Employee Performance Pagination Helpers
+  const getPaginatedEmployees = useCallback(() => {
+    if (!report?.employeePerformance) return [];
+    const sortedEmployees = getSortedEmployees();
+    const startIndex = (employeePerfPage - 1) * employeesPerPage;
+    const endIndex = startIndex + employeesPerPage;
+    return sortedEmployees.slice(startIndex, endIndex);
+  }, [report, employeePerfPage, employeesPerPage, getSortedEmployees]);
+
+  const getTotalEmployeePages = useCallback(() => {
+    if (!report?.employeePerformance) return 1;
+    return Math.ceil(report.employeePerformance.length / employeesPerPage);
+  }, [report, employeesPerPage]);
+
+  const handleEmployeePerfPrev = () => {
+    if (employeePerfPage > 1) {
+      setEmployeePerfPage(employeePerfPage - 1);
+    }
+  };
+
+  const handleEmployeePerfNext = () => {
+    if (employeePerfPage < getTotalEmployeePages()) {
+      setEmployeePerfPage(employeePerfPage + 1);
+    }
+  };
 
   const handleProjectHealthNext = () => {
     const totalPages = getTotalProjectPages();
@@ -990,7 +1020,190 @@ const OverallReportScreen = ({ navigation }: any) => {
           </View>
         )}
 
-        {/* 3. Project Health */}
+        {/* 3. Employee Performance */}
+        <View style={styles.workerPerformanceCard}>
+          <View style={styles.workerPerformanceHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="people-outline" size={22} color="#1F2937" style={{ marginRight: 8 }} />
+                <Text style={styles.workerPerformanceTitle}>Employee Performance</Text>
+              </View>
+              {/* Scroll Indicator */}
+              {report.employeePerformance && report.employeePerformance.length > 2 && (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={{ fontSize: 11, color: "#6B7280", marginRight: 4 }}>Scroll</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#374151" />
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.legendContainer}>
+            <View style={styles.legendItem}>
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.legendDot}
+              />
+              <Text style={styles.legendText}>Completed</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <LinearGradient
+                colors={['#F59E0B', '#D97706']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.legendDot}
+              />
+              <Text style={styles.legendText}>Overdue</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <LinearGradient
+                colors={['#EF4444', '#DC2626']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.legendDot}
+              />
+              <Text style={styles.legendText}>Not Started</Text>
+            </View>
+          </View>
+
+          {report.employeePerformance && report.employeePerformance.length > 0 ? (
+            <View style={styles.chartContainer}>
+              {/* Fixed Y-Axis Overlay - Stays in place */}
+              <View style={styles.yAxisFixedContainer}>
+                {(() => {
+                  const yLabels = [25, 20, 15, 10, 5, 0];
+                  return (
+                    <>
+                      {yLabels.map((label, index) => (
+                        <View key={index} style={styles.yAxisLabelContainer}>
+                          <Text style={styles.yAxisLabel}>{label}</Text>
+                        </View>
+                      ))}
+                    </>
+                  );
+                })()}
+              </View>
+
+              {/* Scrollable Chart Area - Only bars and X-axis scroll */}
+              <View style={styles.chartScrollableWrapper}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  bounces={false}
+                  scrollEventThrottle={16}
+                  nestedScrollEnabled={false}
+                >
+                  {(() => {
+                    // Ensure minimum 2 employees are shown
+                    const employeesToShow = report.employeePerformance.length >= 2 
+                      ? report.employeePerformance 
+                      : [...report.employeePerformance, ...report.employeePerformance].slice(0, 2);
+                    
+                    const barData: any[] = [];
+
+                    employeesToShow.forEach((employee: any, index: number) => {
+                      const completed = employee.completed_tasks || 0;
+                      const overdue = employee.overdue_tasks || 0;
+                      const notStarted = Math.max(
+                        0,
+                        (employee.assigned_tasks || 0) - completed - overdue
+                      );
+
+                      // Add completed bar with gradient
+                      barData.push({
+                        value: completed,
+                        label: employee.name.length > 10 ? employee.name.substring(0, 10) + ".." : employee.name,
+                        frontColor: "#10B981",
+                        gradientColor: "#059669",
+                        spacing: 2,
+                        labelWidth: 80,
+                        labelTextStyle: { color: "#000000", fontSize: 12, fontWeight: "700" },
+                        topLabelComponent: () => (
+                          <Text style={{ color: "#10B981", fontSize: 12, fontWeight: "700", marginBottom: 4 }}>
+                            {completed}
+                          </Text>
+                        ),
+                      });
+
+                      // Add overdue bar with gradient
+                      barData.push({
+                        value: overdue,
+                        frontColor: "#F59E0B",
+                        gradientColor: "#D97706",
+                        spacing: 2,
+                        topLabelComponent: () => (
+                          <Text style={{ color: "#F59E0B", fontSize: 12, fontWeight: "700", marginBottom: 4 }}>
+                            {overdue}
+                          </Text>
+                        ),
+                      });
+
+                      // Add not started bar with gradient
+                      barData.push({
+                        value: notStarted,
+                        frontColor: "#EF4444",
+                        gradientColor: "#DC2626",
+                        spacing: index < employeesToShow.length - 1 ? 50 : 2,
+                        topLabelComponent: () => (
+                          <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "700", marginBottom: 4 }}>
+                            {notStarted}
+                          </Text>
+                        ),
+                      });
+                    });
+
+                    // Calculate width to show minimum 2 employees on mobile
+                    const employeeWidth = isMobile ? 160 : 140;
+                    const chartWidth = Math.max(
+                      isMobile ? (width - 100) : 500,
+                      employeesToShow.length * employeeWidth
+                    );
+
+                    return (
+                      <BarChart
+                        data={barData}
+                        width={chartWidth}
+                        height={280}
+                        barWidth={isMobile ? 34 : 28}
+                        spacing={2}
+                        initialSpacing={10}
+                        noOfSections={5}
+                        maxValue={25}
+                        stepValue={5}
+                        yAxisThickness={0}
+                        hideYAxisText={true}
+                        xAxisThickness={2}
+                        xAxisColor="#000000"
+                        xAxisLabelTextStyle={{ color: "#000000", fontSize: 12, fontWeight: "700" }}
+                        rulesColor="#E5E7EB"
+                        rulesType="dashed"
+                        hideRules={false}
+                        showVerticalLines={false}
+                        isAnimated
+                        animationDuration={800}
+                        barBorderRadius={6}
+                        dashWidth={4}
+                        dashGap={4}
+                        xAxisLabelsVerticalShift={0}
+                        trimYAxisAtTop={false}
+                        hideOrigin={false}
+                        yAxisOffset={0}
+                      />
+                    );
+                  })()}
+                </ScrollView>
+              </View>
+            </View>
+          ) : (
+            <Text style={{ textAlign: "center", color: "#6B7280", margin: 20 }}>
+              No worker performance data available.
+            </Text>
+          )}
+        </View>
+
+        {/* 4. Project Health */}
         <View style={styles.sectionContainer}>
           <SectionHeader title="Project Health" icon="pulse-outline" />
           <View style={styles.projectList}>
@@ -1322,150 +1535,100 @@ const OverallReportScreen = ({ navigation }: any) => {
         </View>
 
         {/* 6. Task Analytics */}
-        <View style={styles.sectionContainer}>
-          <SectionHeader title="Task Analytics" icon="stats-chart-outline" />
-          <View
-            style={[
-              styles.taskStatsGrid,
-              { flexWrap: "wrap", gap: 12 },
-            ]}
-          >
-            <View
-              style={[
-                styles.taskStatBox,
-                { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
-              ]}
-            >
-              <Text style={styles.taskVal}>
-                {report.taskStatistics.total_tasks}
-              </Text>
-              <Text style={styles.taskLabel}>Total Tasks</Text>
-            </View>
-            <View
-              style={[
-                styles.taskStatBox,
-                { backgroundColor: "#ECFDF5", borderColor: "#D1FAE5" },
-              ]}
-            >
-              <Text style={[styles.taskVal, { color: "#059669" }]}>
-                {report.taskStatistics.completed_tasks}
-              </Text>
-              <Text style={[styles.taskLabel, { color: "#065F46" }]}>
-                Completed
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.taskStatBox,
-                { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
-              ]}
-            >
-              <Text style={[styles.taskVal, { color: "#D97706" }]}>
-                {report.taskStatistics.waiting_approval}
-              </Text>
-              <Text style={[styles.taskLabel, { color: "#92400E" }]}>
-                Pending
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.taskStatBox,
-                { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
-              ]}
-            >
-              <Text style={[styles.taskVal, { color: "#7C3AED" }]}>
-                {report.taskStatistics.avg_completion_time_days}d
-              </Text>
-              <Text style={[styles.taskLabel, { color: "#5B21B6" }]}>
-                Avg Time
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 7. Worker Performance */}
-        <View style={styles.sectionContainer}>
-          <SectionHeader title="Worker Performance" icon="people-outline" />
-          <View style={{ flexDirection: "row", justifyContent: "space-around", marginBottom: 16, marginTop: 8 }}>
+        <View style={styles.taskAnalyticsCard}>
+          <View style={styles.taskAnalyticsHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#10B981", marginRight: 8 }} />
-              <Text style={{ fontSize: 12, color: "#374151" }}>Completed</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#F59E0B", marginRight: 8 }} />
-              <Text style={{ fontSize: 12, color: "#374151" }}>Overdue</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#EF4444", marginRight: 8 }} />
-              <Text style={{ fontSize: 12, color: "#374151" }}>Not Started</Text>
+              <Ionicons name="stats-chart-outline" size={20} color="#374151" style={{ marginRight: 8 }} />
+              <Text style={styles.taskAnalyticsTitle}>Task Analytics</Text>
             </View>
           </View>
 
-          {report.employeePerformance && report.employeePerformance.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ paddingVertical: 10, paddingLeft: 10 }}>
-                {(() => {
-                  const stackData = report.employeePerformance.map((e: any) => {
-                    const completed = e.completed_tasks || 0;
-                    const overdue = e.overdue_tasks || 0;
-                    const notStarted = Math.max(
-                      0,
-                      (e.total_tasks || 0) - completed - overdue
-                    );
+          <View style={styles.taskAnalyticsContent}>
+            {/* Donut Chart */}
+            <View style={styles.donutChartContainer}>
+              {(() => {
+                const totalTasks = report.taskStatistics.total_tasks || 0;
+                const completedTasks = report.taskStatistics.completed_tasks || 0;
+                const pendingTasks = report.taskStatistics.waiting_approval || 0;
+                const remainingTasks = Math.max(0, totalTasks - completedTasks - pendingTasks);
 
-                    return {
-                      stacks: [
-                        { value: completed, color: "#10B981" },
-                        { value: overdue, color: "#F59E0B" },
-                        { value: notStarted, color: "#EF4444" },
-                      ],
-                      label: e.name.length > 8 ? e.name.substring(0, 8) + ".." : e.name,
-                      barBorderTopLeftRadius: 4,
-                      barBorderTopRightRadius: 4,
-                    };
-                  });
+                // Calculate percentages
+                const completedPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                const pendingPercent = totalTasks > 0 ? Math.round((pendingTasks / totalTasks) * 100) : 0;
+                const remainingPercent = totalTasks > 0 ? Math.round((remainingTasks / totalTasks) * 100) : 0;
 
-                  // Calculate max value for better scaling
-                  const maxTotal = Math.max(
-                    ...stackData.map((s) =>
-                      s.stacks.reduce((acc, curr) => acc + curr.value, 0)
-                    ),
-                    5 // default minimum max value to avoid flatline on 0
-                  );
+                const pieData = [
+                  {
+                    value: completedTasks || 1,
+                    color: "#22c55e",
+                    text: `${completedPercent}%`,
+                  },
+                  {
+                    value: pendingTasks || 1,
+                    color: "#f59e0b",
+                    text: `${pendingPercent}%`,
+                  },
+                  {
+                    value: remainingTasks || 1,
+                    color: "#e5e7eb",
+                    text: `${remainingPercent}%`,
+                  },
+                ];
 
-                  // Round up to nearest nice number
-                  const maxValue = Math.ceil(maxTotal / 4) * 4;
-
-                  return (
-                    <BarChart
-                      stackData={stackData}
-                      width={Math.max(width - 80, report.employeePerformance.length * 70)}
-                      height={220}
-                      barWidth={24}
-                      spacing={50}
-                      initialSpacing={20}
-                      noOfSections={4}
-                      maxValue={maxValue}
-                      yAxisThickness={0}
-                      xAxisThickness={0}
-                      xAxisLabelTextStyle={{ color: "#6B7280", fontSize: 11 }}
-                      yAxisTextStyle={{ color: "#9CA3AF", fontSize: 11 }}
-                      rulesColor="#F3F4F6"
-                      rulesType="dashed"
-                      dashGap={6}
-                      dashWidth={4}
-                      showYAxisIndices
-                      hideRules={false}
+                return (
+                  <View style={{ alignItems: "center", width: "100%", paddingVertical: 20 }}>
+                    <PieChart
+                      data={pieData}
+                      donut
+                      radius={130}
+                      innerRadius={95}
+                      innerCircleColor="#FFFFFF"
+                      centerLabelComponent={() => (
+                        <View style={{ alignItems: "center" }}>
+                          <Text style={{ fontSize: 16, fontWeight: "700", color: "#6B7280" }}>Task</Text>
+                          <Text style={{ fontSize: 16, fontWeight: "700", color: "#6B7280" }}>Analytics</Text>
+                        </View>
+                      )}
+                      strokeColor="#FFFFFF"
+                      strokeWidth={3}
+                      isAnimated
+                      animationDuration={1000}
+                      showText
+                      textColor="#FFFFFF"
+                      textSize={16}
+                      fontWeight="700"
+                      showTextBackground={false}
                     />
-                  );
-                })()}
+                  </View>
+                );
+              })()}
+            </View>
+
+            {/* Stats Below Chart */}
+            <View style={styles.taskStatsRow}>
+              <View style={styles.taskStatItem}>
+                <Text style={styles.taskStatValue}>{report.taskStatistics.total_tasks}</Text>
+                <Text style={styles.taskStatLabel}>Total Tasks</Text>
               </View>
-            </ScrollView>
-          ) : (
-            <Text style={{ textAlign: "center", color: "#6B7280", margin: 20 }}>
-              No worker performance data available.
-            </Text>
-          )}
+
+              <View style={[styles.taskStatItem, styles.taskStatDivider]}>
+                <Text style={[styles.taskStatValue, { color: "#22c55e" }]}>
+                  {report.taskStatistics.completed_tasks}
+                </Text>
+                <Text style={styles.taskStatLabel}>Completed</Text>
+              </View>
+
+              <View style={[styles.taskStatItem, styles.taskStatDivider]}>
+                <Text style={[styles.taskStatValue, { color: "#f59e0b" }]}>
+                  {report.taskStatistics.waiting_approval}
+                </Text>
+                <Text style={styles.taskStatLabel}>Pending</Text>
+              </View>
+            </View>
+
+            {/* Average Time - Centered */}
+
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -2001,6 +2164,205 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
   },
+  // Employee Performance Pagination
+  employeePaginationContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  // Worker Performance Card Styles
+  workerPerformanceCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 28,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  workerPerformanceHeader: {
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: "#F3F4F6",
+  },
+  workerPerformanceTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.5,
+  },
+  legendContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginBottom: 28,
+    gap: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+  },
+  legendDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  legendText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  chartContainer: {
+    position: "relative",
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "visible",
+    minHeight: 320,
+  },
+  yAxisFixedContainer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: 280,
+    width: 50,
+    justifyContent: "space-between",
+    paddingTop: 20,
+    paddingBottom: 30,
+    paddingRight: 8,
+    backgroundColor: "#FFFFFF",
+    zIndex: 10,
+    borderRightWidth: 2,
+    borderRightColor: "#000000",
+  },
+  yAxisLabelContainer: {
+    alignItems: "flex-end",
+  },
+  yAxisLabel: {
+    fontSize: 12,
+    color: "#000000",
+    fontWeight: "600",
+  },
+  chartScrollableWrapper: {
+    marginLeft: 50,
+    width: "100%",
+    overflow: "hidden",
+  },
+  // Task Analytics Card Styles
+  taskAnalyticsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  taskAnalyticsHeader: {
+    marginBottom: 16,
+  },
+  taskAnalyticsTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  taskAnalyticsContent: {
+    alignItems: "center",
+  },
+  donutChartContainer: {
+    marginBottom: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  donutCenterLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  taskStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+    width: "100%",
+    marginBottom: 16,
+    paddingHorizontal: 0,
+    gap: 10,
+  },
+  taskStatItem: {
+    alignItems: "center",
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    backgroundColor: "#FAFBFC",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  taskStatDivider: {
+    // Removed border, using gap instead
+  },
+  taskStatIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  taskStatValue: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  taskStatLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+
 });
 
 export default OverallReportScreen;

@@ -36,6 +36,9 @@
         "projectId": "50ccd936-d07f-4d0a-a795-12aae8ad4887"
       }
     },
-    "owner": "sharma10s-organization"
+    "owner": "sharma10s-organization",
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }
