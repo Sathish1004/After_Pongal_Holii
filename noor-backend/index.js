@@ -110,8 +110,6 @@
 //   });
 // });
 
-
-
 // const express = require("express");
 // const cors = require("cors");
 // const dotenv = require("dotenv");
@@ -203,10 +201,6 @@
 //   }
 // })();
 
-
-
-
-
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -216,6 +210,7 @@ dotenv.config();
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const siteRoutes = require("./routes/siteRoutes");
+const filesRoutes = require("./routes/filesRoutes");
 const db = require("./config/db");
 
 const app = express();
@@ -233,6 +228,7 @@ app.use("/uploads", express.static("uploads"));
 // =====================
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/files", filesRoutes);
 app.use("/api", siteRoutes);
 
 // =====================
@@ -246,7 +242,7 @@ app.get("/", (req, res) => {
 // GLOBAL ERROR HANDLER
 // =====================
 app.use((err, req, res, next) => {
-  console.error("Global Error:", err.stack);
+  console.error("Global Error:", err.stack || err);
   res.status(500).json({
     success: false,
     message: "Internal Server Error",
@@ -254,69 +250,82 @@ app.use((err, req, res, next) => {
 });
 
 // =====================
-// 🔥 START SERVER (IMPORTANT FIX)
-// =====================
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-});
-
-// =====================
 // 🔄 DATABASE SCHEMA CHECK
 // =====================
-(async function checkSchema() {
+async function checkSchema() {
+  console.log("🔍 Checking database schema...");
+
+  // employees.profile_image
   try {
-    console.log("🔍 Checking database schema...");
-
-    // employees.profile_image
-    try {
-      await db.query("SELECT profile_image FROM employees LIMIT 1");
-    } catch (error) {
-      if (error.code === "ER_BAD_FIELD_ERROR") {
-        await db.query(
-          "ALTER TABLE employees ADD COLUMN profile_image VARCHAR(255) DEFAULT NULL"
-        );
-        console.log("✅ Added profile_image to employees");
-      }
+    await db.query("SELECT profile_image FROM employees LIMIT 1");
+  } catch (error) {
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      await db.query(
+        "ALTER TABLE employees ADD COLUMN profile_image VARCHAR(255) DEFAULT NULL",
+      );
+      console.log("✅ Added profile_image to employees");
+    } else {
+      throw error;
     }
+  }
 
-    // stage_messages.sender_role
-    try {
-      await db.query("SELECT sender_role FROM stage_messages LIMIT 1");
-    } catch (error) {
-      if (error.code === "ER_BAD_FIELD_ERROR") {
-        await db.query(
-          "ALTER TABLE stage_messages ADD COLUMN sender_role VARCHAR(50) DEFAULT 'employee'"
-        );
-        console.log("✅ Added sender_role to stage_messages");
-      }
+  // stage_messages.sender_role
+  try {
+    await db.query("SELECT sender_role FROM stage_messages LIMIT 1");
+  } catch (error) {
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      await db.query(
+        "ALTER TABLE stage_messages ADD COLUMN sender_role VARCHAR(50) DEFAULT 'employee'",
+      );
+      console.log("✅ Added sender_role to stage_messages");
+    } else {
+      throw error;
     }
+  }
 
-    // sites.site_funds
-    try {
-      await db.query("SELECT site_funds FROM sites LIMIT 1");
-    } catch (error) {
-      if (error.code === "ER_BAD_FIELD_ERROR") {
-        await db.query(
-          "ALTER TABLE sites ADD COLUMN site_funds DECIMAL(15,2) DEFAULT 0"
-        );
-        console.log("✅ Added site_funds to sites");
-      }
+  // sites.site_funds
+  try {
+    await db.query("SELECT site_funds FROM sites LIMIT 1");
+  } catch (error) {
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      await db.query(
+        "ALTER TABLE sites ADD COLUMN site_funds DECIMAL(15,2) DEFAULT 0",
+      );
+      console.log("✅ Added site_funds to sites");
+    } else {
+      throw error;
     }
+  }
 
-    // phases.floor_name
-    try {
-      await db.query("SELECT floor_name FROM phases LIMIT 1");
-    } catch (error) {
-      if (error.code === "ER_BAD_FIELD_ERROR") {
-        await db.query(
-          "ALTER TABLE phases ADD COLUMN floor_name VARCHAR(255) DEFAULT 'Ground Floor'"
-        );
-        console.log("✅ Added floor_name to phases");
-      }
+  // phases.floor_name
+  try {
+    await db.query("SELECT floor_name FROM phases LIMIT 1");
+  } catch (error) {
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      await db.query(
+        "ALTER TABLE phases ADD COLUMN floor_name VARCHAR(255) DEFAULT 'Ground Floor'",
+      );
+      console.log("✅ Added floor_name to phases");
+    } else {
+      throw error;
     }
+  }
 
-    console.log("Database schema check completed successfully");
+  console.log("✅ Database schema check completed");
+}
+
+// =====================
+// 🚀 START SERVER (SAFE)
+// =====================
+(async function startServer() {
+  try {
+    await checkSchema();
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+    });
   } catch (err) {
-    console.error("❌ Schema check failed:", err.message);
+    console.error("❌ Server startup failed:", err);
+    process.exit(1);
   }
 })();

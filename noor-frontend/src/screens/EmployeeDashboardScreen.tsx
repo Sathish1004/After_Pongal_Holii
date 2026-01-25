@@ -210,6 +210,12 @@ const EmployeeDashboardScreen = () => {
             {user?.name?.charAt(0)?.toUpperCase() || "E"}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={logout}
+        >
+          <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -501,6 +507,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+    zIndex: 10,
+    elevation: 3,
   },
   headerTitle: {
     fontSize: 20,
@@ -520,6 +528,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    zIndex: 10,
   },
   iconBtn: {
     width: 44,
@@ -545,6 +554,23 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: "800",
     fontSize: 18,
+  },
+  logoutBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+    borderWidth: 2,
+    borderColor: "#B91C1C",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10,
   },
 
   // Scroll Content

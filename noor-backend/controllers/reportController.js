@@ -1,3 +1,5 @@
+// cSpell:ignore CURDATE DATEDIFF YEARWEEK Financials financials
+
 const db = require("../config/db");
 
 /**

@@ -2067,6 +2067,46 @@ const AdminDashboardScreen = () => {
     "Media" | "Voice" | "Documents" | "Links"
   >("Media");
   const [fileLoading, setFileLoading] = useState(false);
+  const [selectedFileDate, setSelectedFileDate] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Get files grouped by date
+  const getFilesGroupedByDate = () => {
+    const grouped: { [key: string]: any[] } = {};
+    projectFiles.forEach((file) => {
+      const date = new Date(file.created_at).toISOString().split("T")[0];
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(file);
+    });
+    return grouped;
+  };
+
+  // Get file count for a specific date
+  const getFileCountForDate = (date: Date): number => {
+    const dateStr = date.toISOString().split("T")[0];
+    const filesForTab = projectFiles.filter((f) => {
+      const fileDate = new Date(f.created_at).toISOString().split("T")[0];
+      return (
+        fileDate === dateStr &&
+        (activeFileTab === "Media"
+          ? f.type === "image" || f.type === "video"
+          : activeFileTab === "Voice"
+            ? f.type === "audio"
+            : true)
+      );
+    });
+    return filesForTab.length;
+  };
+
+  // Get days in month
+  const getDaysInMonth = (date: Date): number => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  // Get first day of month
+  const getFirstDayOfMonth = (date: Date): number => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
 
   // Dashboard Stats State
   const [dashboardStats, setDashboardStats] = useState<any>(null); // Fixed type to any strictly to enable build, user reported type errors
@@ -6526,6 +6566,66 @@ Project Team`;
                   <Text style={styles.tabSectionTitle}>Project Files</Text>
                 </View>
 
+                {/* Selected Date Indicator */}
+                {selectedFileDate && (
+                  <View
+                    style={{
+                      backgroundColor: "#fef3c7",
+                      borderLeftWidth: 4,
+                      borderLeftColor: "#f59e0b",
+                      paddingVertical: 14,
+                      paddingHorizontal: 14,
+                      borderRadius: 8,
+                      marginBottom: 14,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 2,
+                      elevation: 2,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          color: "#92400e",
+                          fontWeight: "700",
+                          fontSize: 14,
+                          marginBottom: 2,
+                        }}
+                      >
+                        📅 Selected Date
+                      </Text>
+                      <Text
+                        style={{
+                          color: "#78350f",
+                          fontWeight: "600",
+                          fontSize: 13,
+                        }}
+                      >
+                        {selectedFileDate.toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setSelectedFileDate(null)}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons
+                        name="close-circle-sharp"
+                        size={24}
+                        color="#f59e0b"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {/* File Type Tabs */}
                 <View
                   style={{
@@ -6534,15 +6634,21 @@ Project Team`;
                     backgroundColor: "#f3f4f6",
                     borderRadius: 8,
                     padding: 4,
+                    flexWrap: "wrap",
+                    gap: 4,
                   }}
                 >
-                  {["Media"].map((tab) => (
-                    <View
+                  {["Media", "Voice"].map((tab) => (
+                    <TouchableOpacity
                       key={tab}
+                      onPress={() =>
+                        setActiveFileTab(
+                          tab as "Media" | "Voice" | "Documents" | "Links",
+                        )
+                      }
                       style={{
-                        flex: 1,
                         paddingVertical: 8,
-                        alignItems: "center",
+                        paddingHorizontal: 12,
                         borderRadius: 6,
                         backgroundColor:
                           activeFileTab === tab ? "#fff" : "transparent",
@@ -6563,7 +6669,7 @@ Project Team`;
                       >
                         {tab}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
 
@@ -6577,34 +6683,76 @@ Project Team`;
                 ) : (
                   (() => {
                     const filtered = projectFiles.filter((f) => {
-                      if (activeFileTab === "Media")
-                        return f.type === "image" || f.type === "video";
-                      if (activeFileTab === "Voice") return f.type === "audio";
-                      if (activeFileTab === "Documents")
-                        return f.type === "document" || f.type === "pdf"; // Handle pdf if type is specific
-                      if (activeFileTab === "Links") return f.type === "link";
-                      return false;
+                      // Filter by file type
+                      const typeMatch =
+                        activeFileTab === "Media"
+                          ? f.type === "image" || f.type === "video"
+                          : activeFileTab === "Voice"
+                            ? f.type === "audio"
+                            : false;
+
+                      if (!typeMatch) return false;
+
+                      // Filter by selected date if one is selected
+                      if (selectedFileDate) {
+                        const selectedDateStr = selectedFileDate
+                          .toISOString()
+                          .split("T")[0];
+                        const fileDate = new Date(f.created_at)
+                          .toISOString()
+                          .split("T")[0];
+                        return selectedDateStr === fileDate;
+                      }
+
+                      return true;
                     });
 
                     if (filtered.length === 0) {
                       return (
-                        <View style={styles.emptyTabState}>
+                        <View
+                          style={[
+                            styles.emptyTabState,
+                            { paddingVertical: 50 },
+                          ]}
+                        >
                           <Ionicons
                             name={
                               activeFileTab === "Voice"
                                 ? "mic-outline"
-                                : activeFileTab === "Documents"
-                                  ? "document-text-outline"
-                                  : activeFileTab === "Links"
-                                    ? "link-outline"
-                                    : "images-outline"
+                                : "images-outline"
                             }
-                            size={48}
-                            color="#e5e7eb"
+                            size={56}
+                            color="#d1d5db"
                           />
-                          <Text style={styles.emptyTabText}>
+                          <Text
+                            style={[
+                              styles.emptyTabText,
+                              {
+                                marginTop: 12,
+                                fontSize: 16,
+                                fontWeight: "700",
+                              },
+                            ]}
+                          >
                             No {activeFileTab.toLowerCase()} found
                           </Text>
+                          {selectedFileDate && (
+                            <Text
+                              style={{
+                                color: "#9ca3af",
+                                fontSize: 13,
+                                marginTop: 8,
+                                textAlign: "center",
+                              }}
+                            >
+                              No {activeFileTab.toLowerCase()} files on{"\n"}
+                              {selectedFileDate.toLocaleDateString("en-US", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </Text>
+                          )}
                         </View>
                       );
                     }
@@ -6630,112 +6778,151 @@ Project Team`;
                     return (
                       <View>
                         {Object.keys(groups).map((dateKey) => (
-                          <View key={dateKey} style={{ marginBottom: 20 }}>
+                          <View key={dateKey} style={{ marginBottom: 24 }}>
                             <Text
                               style={{
-                                fontSize: 13,
-                                fontWeight: "600",
-                                color: "#6b7280",
-                                marginBottom: 10,
+                                fontSize: 14,
+                                fontWeight: "700",
+                                color: "#374151",
+                                marginBottom: 12,
                                 marginLeft: 4,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.5,
                               }}
                             >
-                              {dateKey.toUpperCase()}
+                              {dateKey}
                             </Text>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                flexWrap: "wrap",
-                                gap: 10,
-                              }}
-                            >
-                              {groups[dateKey].map((file) => (
-                                <TouchableOpacity
-                                  key={file.id}
-                                  style={{
-                                    width:
-                                      activeFileTab === "Voice" ||
-                                      activeFileTab === "Documents"
-                                        ? "100%"
-                                        : "31%",
-                                    aspectRatio:
-                                      activeFileTab === "Voice" ||
-                                      activeFileTab === "Documents"
-                                        ? undefined
-                                        : 1,
-                                    height:
-                                      activeFileTab === "Voice" ||
-                                      activeFileTab === "Documents"
-                                        ? 60
-                                        : undefined,
-                                    backgroundColor: "#f9fafb",
-                                    borderRadius: 8,
-                                    borderWidth: 1,
-                                    borderColor: "#e5e7eb",
-                                    overflow: "hidden",
-                                    flexDirection:
-                                      activeFileTab === "Voice" ||
-                                      activeFileTab === "Documents"
-                                        ? "row"
-                                        : "column",
-                                    alignItems: "center",
-                                    padding:
-                                      activeFileTab === "Voice" ||
-                                      activeFileTab === "Documents"
-                                        ? 10
-                                        : 0,
-                                  }}
-                                >
-                                  {file.type === "image" ? (
-                                    <Image
-                                      source={{
-                                        uri: file.url.startsWith("http")
-                                          ? file.url
-                                          : `http://localhost:5000/${file.url}`,
-                                      }}
-                                      style={{ width: "100%", height: "100%" }}
-                                      resizeMode="cover"
-                                    />
-                                  ) : (
+                            {activeFileTab === "Media" ? (
+                              // Grid layout for Media (Images/Videos)
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  flexWrap: "wrap",
+                                  gap: 12,
+                                }}
+                              >
+                                {groups[dateKey].map((file) => (
+                                  <TouchableOpacity
+                                    key={file.id}
+                                    style={{
+                                      width: "30%",
+                                      aspectRatio: 1,
+                                      backgroundColor: "#f9fafb",
+                                      borderRadius: 10,
+                                      borderWidth: 1,
+                                      borderColor: "#e5e7eb",
+                                      overflow: "hidden",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      elevation: 2,
+                                      shadowColor: "#000",
+                                      shadowOffset: { width: 0, height: 1 },
+                                      shadowOpacity: 0.1,
+                                      shadowRadius: 2,
+                                    }}
+                                  >
+                                    {file.type === "image" && file.url ? (
+                                      <Image
+                                        source={{
+                                          uri: file.url.startsWith("http")
+                                            ? file.url
+                                            : `${api.defaults.baseURL?.replace("/api", "") || "http://localhost:5000"}${file.url.startsWith("/") ? "" : "/"}${file.url}`,
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          flex: 1,
+                                        }}
+                                        resizeMode="cover"
+                                        onError={(error) => {
+                                          console.error(
+                                            "Image load error:",
+                                            error,
+                                          );
+                                          console.log(
+                                            "Attempted URL:",
+                                            file.url,
+                                          );
+                                        }}
+                                      />
+                                    ) : (
+                                      <View
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          backgroundColor:
+                                            file.type === "video"
+                                              ? "#f0f9ff"
+                                              : "#f3f4f6",
+                                        }}
+                                      >
+                                        <Ionicons
+                                          name={
+                                            file.type === "video"
+                                              ? "videocam"
+                                              : "image"
+                                          }
+                                          size={40}
+                                          color={
+                                            file.type === "video"
+                                              ? "#0284c7"
+                                              : "#9ca3af"
+                                          }
+                                        />
+                                        <Text
+                                          style={{
+                                            fontSize: 10,
+                                            color: "#6b7280",
+                                            marginTop: 4,
+                                          }}
+                                        >
+                                          {file.type.toUpperCase()}
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            ) : (
+                              // List layout for Voice, Documents, Links
+                              <View>
+                                {groups[dateKey].map((file) => (
+                                  <TouchableOpacity
+                                    key={file.id}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      padding: 12,
+                                      marginBottom: 8,
+                                      backgroundColor: "#f9fafb",
+                                      borderRadius: 8,
+                                      borderWidth: 1,
+                                      borderColor: "#e5e7eb",
+                                    }}
+                                  >
                                     <View
                                       style={{
-                                        width:
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? 40
-                                            : "100%",
-                                        height:
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? 40
-                                            : "70%",
+                                        width: 50,
+                                        height: 50,
+                                        borderRadius: 25,
                                         alignItems: "center",
                                         justifyContent: "center",
                                         backgroundColor:
                                           activeFileTab === "Voice"
                                             ? "#fee2e2"
                                             : "#f3f4f6",
-                                        borderRadius:
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? 20
-                                            : 0,
+                                        marginRight: 12,
                                       }}
                                     >
                                       <Ionicons
                                         name={
-                                          file.type === "video"
-                                            ? "videocam"
-                                            : file.type === "audio"
-                                              ? "mic"
-                                              : "document-text"
+                                          activeFileTab === "Voice"
+                                            ? "mic"
+                                            : "document-text"
                                         }
-                                        size={
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? 20
-                                            : 32
-                                        }
+                                        size={24}
                                         color={
                                           activeFileTab === "Voice"
                                             ? "#dc2626"
@@ -6743,75 +6930,68 @@ Project Team`;
                                         }
                                       />
                                     </View>
-                                  )}
 
-                                  {/* Details View */}
-                                  <View
-                                    style={{
-                                      padding:
-                                        activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
-                                          ? 0
-                                          : 4,
-                                      marginLeft:
-                                        activeFileTab === "Voice" ||
-                                        activeFileTab === "Documents"
-                                          ? 10
-                                          : 0,
-                                      flex: 1,
-                                      justifyContent: "center",
-                                      width: "100%",
-                                    }}
-                                  >
-                                    <Text
-                                      numberOfLines={1}
+                                    <View style={{ flex: 1 }}>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={{
+                                          fontSize: 14,
+                                          fontWeight: "600",
+                                          color: "#111827",
+                                          marginBottom: 4,
+                                        }}
+                                      >
+                                        {file.task_name || "Project File"}
+                                      </Text>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#6b7280",
+                                        }}
+                                      >
+                                        By {file.uploaded_by || "Unknown"} •{" "}
+                                        {new Date(
+                                          file.created_at,
+                                        ).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </Text>
+                                    </View>
+
+                                    <TouchableOpacity
                                       style={{
-                                        fontSize: 12,
-                                        fontWeight: "500",
-                                        color: "#111827",
-                                        textAlign:
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? "left"
-                                            : "center",
+                                        padding: 8,
+                                        marginLeft: 8,
+                                      }}
+                                      onPress={() => {
+                                        if (file.url) {
+                                          const fullUrl = file.url.startsWith(
+                                            "http",
+                                          )
+                                            ? file.url
+                                            : `${api.defaults.baseURL?.replace("/api", "") || "http://localhost:5000"}${file.url.startsWith("/") ? "" : "/"}${file.url}`;
+                                          Linking.openURL(fullUrl).catch(
+                                            (err) =>
+                                              console.error(
+                                                "Failed to open URL:",
+                                                err,
+                                              ),
+                                          );
+                                        }
                                       }}
                                     >
-                                      {file.task_name || "Project File"}
-                                    </Text>
-                                    <Text
-                                      numberOfLines={1}
-                                      style={{
-                                        fontSize: 10,
-                                        color: "#6b7280",
-                                        textAlign:
-                                          activeFileTab === "Voice" ||
-                                          activeFileTab === "Documents"
-                                            ? "left"
-                                            : "center",
-                                      }}
-                                    >
-                                      {file.uploaded_by || "Unknown"} •{" "}
-                                      {new Date(
-                                        file.created_at,
-                                      ).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </Text>
-                                  </View>
-
-                                  {(activeFileTab === "Voice" ||
-                                    activeFileTab === "Documents") && (
-                                    <Ionicons
-                                      name="download-outline"
-                                      size={20}
-                                      color="#6b7280"
-                                      style={{ marginRight: 5 }}
-                                    />
-                                  )}
-                                </TouchableOpacity>
-                              ))}
-                            </View>
+                                      <Ionicons
+                                        name="open-outline"
+                                        size={20}
+                                        color="#8B0000"
+                                      />
+                                    </TouchableOpacity>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
                           </View>
                         ))}
                       </View>
